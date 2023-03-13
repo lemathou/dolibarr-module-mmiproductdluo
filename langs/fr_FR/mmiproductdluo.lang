@@ -1,0 +1,64 @@
+# Copyright (C) 2022 Moulin Mathieu <contact@iprospective.fr>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+#
+# Generic
+#
+
+# Module label 'ModuleMMIProductDluoName'
+ModuleMMIProductDluoName = Gestion avancée Lots Produit (DDM/DLC/DLUO)
+# Module description 'ModuleMMIProductDluoDesc'
+ModuleMMIProductDluoDesc = Réapprovisionnements, calcul du stock des kits
+
+#
+# Admin page
+#
+MMIProductDluoSetup = MMIProductDluo setup
+Settings = Settings
+MMIProductDluoSetupPage = MMIProductDluo setup page
+MMIPRODUCTDLUO_PERIME = Délai péremption après DDM
+MMIPRODUCTDLUO_PERIMETooltip = Défaut: 59, càd que 59 jours après la DDM, un produit est retiré de la vente et il reste 1 mois pour le vendre au rabais dans des paniers
+MMIPRODUCTDLUO_ANTIGASPI = Délai mise en antigaspi avant DDM
+MMIPRODUCTDLUO_ANTIGASPITooltip = Défaut: 2, càd que 2 jours avant la DDM, un produit sera mis en antigaspi -25%% jusqu'au délai de péremption de -59j par défaut
+MMIPRODUCTDLUO_PROMO = Délai promo avant DDM
+MMIPRODUCTDLUO_PROMOTooltip = Défaut: 30, càd que 30 jours avant la DDM, un produit sera mis en promo -10%%
+MMIPRODUCTDLUO_STOCK_COMPOSED_DDM_AUTO = Calcul automatique du stock des produits composés avec DDM
+MMIPRODUCTDLUO_ANTIGASPI_EMAIL_FROM = Adresse expéditeur notifications
+MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO = Adresse de réception notifications
+MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECT = Objet de l'email de notification
+MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECTTooltip = Par défaut = ANTI-GASPI : sortie automatique de stock
+
+#
+# About page
+#
+About = About
+MMIProductDluoAbout = About MMIProductDluo
+MMIProductDluoAboutPage = MMIProductDluo about page
+
+#
+# Sample page
+#
+MyPageName = My page name
+
+#
+# Sample widget
+#
+MyWidget = My widget
+MyWidgetDescription = My widget description
+
+#
+# Buttons
+#
+MMIProductsDLUOStockCalculate = Recalculer le stock
