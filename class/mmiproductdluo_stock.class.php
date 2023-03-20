@@ -48,12 +48,12 @@ public function lot_ddm_old_remove()
 	$reserved = [];
 
 	// Ordonner les stocks pour sortir d'abord ce qui est dans le dépôt, lorsqu'on a un stock réservé pour des commandes pas expédiées
-	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.eatby, UNIX_TIMESTAMP(pl.eatby) AS eatby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`eatby`, NOW()) AS `datediff`, p.pmp, p.cost_price
+	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.sellby, UNIX_TIMESTAMP(pl.sellby) AS sellby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`sellby`, NOW()) AS `datediff`, p.pmp, p.cost_price
 		FROM `'.MAIN_DB_PREFIX.'product_lot` pl
 		INNER JOIN `'.MAIN_DB_PREFIX.'product` p ON p.rowid=pl.fk_product
 		INNER JOIN `'.MAIN_DB_PREFIX.'product_stock` s ON s.fk_product=pl.fk_product
 		INNER JOIN `'.MAIN_DB_PREFIX.'product_batch` pb ON pb.fk_product_stock=s.rowid AND pb.batch=pl.batch
-		WHERE DATEDIFF(pl.`eatby`, NOW()) < -'.$datediff.' AND pb.qty>0
+		WHERE DATEDIFF(pl.`sellby`, NOW()) < -'.$datediff.' AND pb.qty>0
 		ORDER BY pl.fk_product, pl.batch, s.rowid';
 	//return $sql;
 	//echo $sql;
@@ -75,14 +75,14 @@ public function lot_ddm_old_remove()
 		$sens = 1;
 		// Tout réservé => Pas de mouvement
 		if ($reserved[$r['fk_product']] >= $r['qty']) {
-			$list[1][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['eatby'].' : quantité réservée '.$r['qty'];
+			$list[1][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : quantité réservée '.$r['qty'];
 			$qte = 0;
 			$reserved[$r['fk_product']] -= $r['qty'];
 			continue;
 		}
 		// Calcul en soustrayant le stock réservé
 		elseif ($reserved[$r['fk_product']] && $reserved[$r['fk_product']] < $r['qty']) {
-			$list[1][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['eatby'].' : quantité réservée '.$reserved[$r['fk_product']];
+			$list[1][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : quantité réservée '.$reserved[$r['fk_product']];
 			$qte = $r['qty'] - $reserved[$r['fk_product']];
 			$reserved[$r['fk_product']] = 0;
 		}
@@ -102,7 +102,7 @@ public function lot_ddm_old_remove()
 			$sens,
 			'Sortie Antigaspi RAZ pour panier',
 			$price,
-			$r['eatby_ts'], // dlc
+			$r['sellby_ts'], // dlc
 			'', // dluo
 			$r['batch'],
 			'', // $inventorycode
@@ -111,7 +111,7 @@ public function lot_ddm_old_remove()
 			// $disablestockchangeforsubproduct = 0
 		);
 
-		$list[$res>0 ?0 :2][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['eatby'].' : quantité supprimée '.$qte;
+		$list[$res>0 ?0 :2][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : quantité supprimée '.$qte;
 	}
 
 	// On a forcément des choses à envoyer !
@@ -182,7 +182,7 @@ public function stock_calculate($fk_product)
 		mmi_prestasync::ws_trigger('stock', 'product_stock', 'osync', $fk_product_stock);
 
 	// On calcule le stock des produits à DDM non courte
-	$sql = 'SELECT p.rowid, pc.qty, SUM(IF(DATEDIFF(l.eatby, NOW()) >= '.$datediff.' AND b.qty IS NOT NULL, b.qty, 0)) as qte, SUM(IF(b.qty IS NOT NULL, b.qty, 0)) as qte_tot
+	$sql = 'SELECT p.rowid, pc.qty, SUM(IF(DATEDIFF(l.sellby, NOW()) >= '.$datediff.' AND b.qty IS NOT NULL, b.qty, 0)) as qte, SUM(IF(b.qty IS NOT NULL, b.qty, 0)) as qte_tot
 		FROM `'.MAIN_DB_PREFIX.'product_association` pc
 		INNER JOIN `'.MAIN_DB_PREFIX.'product` p ON p.rowid=pc.fk_product_fils
 		INNER JOIN `'.MAIN_DB_PREFIX.'product_stock` s ON s.fk_product=p.rowid
@@ -191,7 +191,7 @@ public function stock_calculate($fk_product)
 		WHERE pc.fk_product_pere='.$fk_product.'
 			AND pc.qty>0
 		GROUP BY p.rowid';
-	// DATEDIFF(b.eatby, NOW()) as `datediff`, b.eatby, b.batch
+	// DATEDIFF(b.sellby, NOW()) as `datediff`, b.sellby, b.batch
 	//echo '<pre>'.$sql.'</pre>'; die();
 	//trigger_error($sql);
 
@@ -257,7 +257,7 @@ public function reserved_qty($fk_product, $kit_check='inkit_only')
 			INNER JOIN `'.MAIN_DB_PREFIX.'product_batch` b ON b.fk_product_stock=s.rowid
 			INNER JOIN `'.MAIN_DB_PREFIX.'product_lot` l ON l.fk_product=s.fk_product AND l.batch=b.batch
 			WHERE s.fk_product='.$fk_product.'
-				AND b.qty > 0 AND DATEDIFF(l.eatby, NOW()) < '.$datediff.'
+				AND b.qty > 0 AND DATEDIFF(l.sellby, NOW()) < '.$datediff.'
 			LIMIT 1';
 		$q = $this->db->query($sql);
 		

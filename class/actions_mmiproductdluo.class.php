@@ -4,7 +4,7 @@ dol_include_once('custom/mmicommon/class/mmi_actions.class.php');
 require_once 'mmiproductdluo_stock.class.php';
 
 class ActionsMMIProductDluo extends MMI_Actions_1_0
-{stockalertzero
+{
 	const MOD_NAME = 'mmiproductdluo';
 
     protected $stockalertzero;
@@ -72,7 +72,7 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.eatby, NOW()) > 30), 0) AS ddm_qty_30';
+            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.sellby, NOW()) > 30), 0) AS ddm_qty_30';
             // @todo : mettre le filtrage par stock !
 
             // Stock DDM >= 3j
@@ -80,23 +80,23 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.eatby, NOW()) > 2 AND DATEDIFF(pl.eatby, NOW()) <= 30), 0) AS ddm_qty_2';
+            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.sellby, NOW()) > 2 AND DATEDIFF(pl.sellby, NOW()) <= 30), 0) AS ddm_qty_2';
 
             // Stock DDM >= -45j
             $print .= ', COALESCE((SELECT SUM(pl2.qty)'
             .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.eatby, NOW()) > -45 AND DATEDIFF(pl.eatby, NOW()) <= 2), 0) AS ddm_qty_m45';
+            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.sellby, NOW()) > -45 AND DATEDIFF(pl.sellby, NOW()) <= 2), 0) AS ddm_qty_m45';
 
             // liste Stock lots
-            $print .= ', (SELECT GROUP_CONCAT(pl.eatby, " : ", pl2.qty SEPARATOR "'."\n".'")'
+            $print .= ', (SELECT GROUP_CONCAT(pl.sellby, " : ", pl2.qty SEPARATOR "'."\n".'")'
             .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
             .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
             .' WHERE pl.fk_product = p.rowid) AS ddm';
 
-            //$print = ', GROUP_CONCAT(pl.eatby SEPARATOR " ") ddm_dates, SUM(pl2.qty) ddm_qte';
+            //$print = ', GROUP_CONCAT(pl.sellby SEPARATOR " ") ddm_dates, SUM(pl2.qty) ddm_qte';
         }
     
         if (! $error)
