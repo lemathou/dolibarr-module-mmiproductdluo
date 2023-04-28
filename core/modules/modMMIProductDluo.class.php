@@ -115,6 +115,8 @@ class modMMIProductDluo extends DolibarrModules
 			),
 			// Set here all hooks context managed by module. To find available hook context, make a "grep -r '>initHooks(' *" on source code. You can also set hook context to 'all'
 			'hooks' => array(
+				'receptioncard',
+				'expeditioncard',
 				'productcard',
 				'stockreplenishlist',
 				//   'data' => array(
@@ -419,13 +421,9 @@ class modMMIProductDluo extends DolibarrModules
 		}
 
 		// Create extrafields during init
-		//include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
-		//$extrafields = new ExtraFields($this->db);
-		//$result1=$extrafields->addExtraField('mmiproductdluo_myattr1', "New Attr 1 label", 'boolean', 1,  3, 'thirdparty',   0, 0, '', '', 1, '', 0, 0, '', '', 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
-		//$result2=$extrafields->addExtraField('mmiproductdluo_myattr2', "New Attr 2 label", 'varchar', 1, 10, 'project',      0, 0, '', '', 1, '', 0, 0, '', '', 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
-		//$result3=$extrafields->addExtraField('mmiproductdluo_myattr3', "New Attr 3 label", 'varchar', 1, 10, 'bank_account', 0, 0, '', '', 1, '', 0, 0, '', '', 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
-		//$result4=$extrafields->addExtraField('mmiproductdluo_myattr4', "New Attr 4 label", 'select',  1,  3, 'thirdparty',   0, 1, '', array('options'=>array('code1'=>'Val1','code2'=>'Val2','code3'=>'Val3')), 1,'', 0, 0, '', '', 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
-		//$result5=$extrafields->addExtraField('mmiproductdluo_myattr5', "New Attr 5 label", 'text',    1, 10, 'user',         0, 0, '', '', 1, '', 0, 0, '', '', 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
+		$extrafields = new ExtraFields($this->db);
+        $extrafields->addExtraField('kit_ddm_any', $langs->trans('Extrafield_kit_ddm_any'), 'boolean', 10, '', 'product', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_kit_ddm_any'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
 
 		// Permissions
 		$this->remove($options);

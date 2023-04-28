@@ -62,3 +62,8 @@ MyWidgetDescription = My widget description
 # Buttons
 #
 MMIProductsDLUOStockCalculate = Recalculer le stock
+
+#
+# Extrafields
+#
+Extrafield_kit_ddm_any = Compter aussi les antigaspi dans le kit (prendre tout)
