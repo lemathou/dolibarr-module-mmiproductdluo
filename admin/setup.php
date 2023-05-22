@@ -34,12 +34,7 @@ $arrayofparameters = array(
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_FROM'=>array('type'=>'string','enabled'=>1),
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO'=>array('type'=>'string','enabled'=>1),
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECT'=>array('type'=>'string','enabled'=>1),
-	//'MMIPRODUCTDLUO_MYPARAM3'=>array('type'=>'category:'.Categorie::TYPE_CUSTOMER, 'enabled'=>1),
-	//'MMIPRODUCTDLUO_MYPARAM4'=>array('type'=>'emailtemplate:thirdparty', 'enabled'=>1),
-	//'MMIPRODUCTDLUO_MYPARAM5'=>array('type'=>'yesno', 'enabled'=>1),
-	//'MMIPRODUCTDLUO_MYPARAM5'=>array('type'=>'thirdparty_type', 'enabled'=>1),
-	//'MMIPRODUCTDLUO_MYPARAM6'=>array('type'=>'securekey', 'enabled'=>1),
-	//'MMIPRODUCTDLUO_MYPARAM7'=>array('type'=>'product', 'enabled'=>1),
+	'MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN'=>array('type'=>'yesno', 'enabled'=>1),
 );
 
 require_once('../../mmicommon/admin/mmisetup_1.inc.php');

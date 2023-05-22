@@ -39,6 +39,7 @@ MMIPRODUCTDLUO_ANTIGASPI_EMAIL_FROM = Adresse expéditeur notifications
 MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO = Adresse de réception notifications
 MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECT = Objet de l'email de notification
 MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECTTooltip = Par défaut = ANTI-GASPI : sortie automatique de stock
+MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN = Recherche par EAN (douchette) pour créer une réception
 
 #
 # About page

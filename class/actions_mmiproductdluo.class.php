@@ -41,6 +41,50 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 
 			return 0;
 		}
+		elseif ($this->in_context($parameters, 'ordersupplierdispatch')) {
+			if (!empty($conf->global->MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN)) {
+			?>
+			<div id="batch_from">
+				<br />
+				Saisissez un code barre et tapez "Entrée" pour le rechercher :
+				<input type="text" class="batch" value="" size="13" style="border: 1px solid gray;" placeholder="EAN douchette" />
+			</div>
+			<script>
+				$(document).ready(function(){
+					$('#batch_from').appendTo('.fichecenter');
+					$('#batch_from input').on('keyup', function (e) {
+						if (e.key === 'Enter' || e.keyCode === 13) {
+							// Do something
+							var val = $(this).val();
+							$('form div table td.barcode').each(function(){
+								var val2 = $(this).html();
+								//alert(val2);
+								if (val==val2) {
+									var pos = $(this).data('pos');
+									$(this).parent().parent().find('input#lot_number_0_'+pos).focus();
+								}
+							});
+						}
+					});
+				});
+			</script>
+			<?php
+			}
+		}
+
+		return 0;
+	}
+
+	function formObjectOptions($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $conf;
+
+		// Réception => Bloquer si on a pas saisi toutes les DDM
+		if ($this->in_context($parameters, 'receptioncard')) {
+			//echo '<script>$(document).ready(function(){ $(\'input[type=submit][name=add]\').click(function(){ var ok=false; alert(\'Missing dluo\'); return ok; }); });</script>';
+
+			return 0;
+		}
 
 		return 0;
 	}
@@ -98,6 +142,9 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 
             //$print = ', GROUP_CONCAT(pl.sellby SEPARATOR " ") ddm_dates, SUM(pl2.qty) ddm_qte';
         }
+		elseif ($this->in_context($parameters, 'ordersupplierdispatch')) {
+			$print .= ', p.barcode';
+		}
     
         if (! $error)
         {
@@ -279,7 +326,7 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
      */
     function printFieldListTitle($parameters, &$object, &$action, $hookmanager)
     {
-        global $conf;
+        global $conf, $langs;
 
         $error = 0; // Error counter
         $print = '';
@@ -292,6 +339,11 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             .'<td>DDM >&nbsp;2j</td>'
             .'<td>DDM >&nbsp;30j</td>';
         }
+		elseif ($this->in_context($parameters, 'ordersupplierdispatch')) {
+			if (!empty($conf->global->MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN)) {
+				$print .= '<td class="right">'.$langs->trans("Barcode").'</td>';
+			}
+		}
     
         if (! $error)
         {
@@ -310,6 +362,8 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
      */
     function printFieldListValue($parameters, &$object, &$action, $hookmanager)
     {
+		global $conf, $langs;
+
         $error = 0; // Error counter
         $print = '';
     
@@ -322,6 +376,16 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             .'<td class="right"'.($objp->ddm_qty_2==0 ?' style="color: gray;"' :'').'>'.$objp->ddm_qty_2.'</td>'
             .'<td class="right"'.($objp->ddm_qty_30==0 ?' style="color: gray;"' :'').'>'.$objp->ddm_qty_30.'</td>';
         }
+		elseif ($this->in_context($parameters, 'ordersupplierdispatch')) {
+			if (!empty($conf->global->MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN)) {
+				static $pos = 0;
+				if (isset($parameters['objp'])) {
+					$objp = $parameters['objp'];
+					$print .= '<td class="barcode right" data-pos="'.$pos.'">'.$objp->barcode.'</td>';
+					$pos++;
+				}
+			}
+		}
     
         if (! $error)
         {
