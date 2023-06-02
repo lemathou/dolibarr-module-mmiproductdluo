@@ -94,7 +94,7 @@ class InterfaceStock_Composed extends DolibarrTriggers
 					}
 
 					// check if product with ddm AND contained in pack
-					$sql = 'SELECT pc.fk_product_pere
+					$sql = 'SELECT DISTINCT pc.fk_product_pere
 						FROM `'.MAIN_DB_PREFIX.'product` p
 						INNER JOIN `'.MAIN_DB_PREFIX.'product_association` pc ON pc.fk_product_fils=p.rowid
 						WHERE p.`rowid`='.$object->product_id
