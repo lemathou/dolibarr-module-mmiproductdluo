@@ -40,6 +40,9 @@ MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO = Adresse de réception notifications
 MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECT = Objet de l'email de notification
 MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECTTooltip = Par défaut = ANTI-GASPI : sortie automatique de stock
 MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN = Recherche par EAN (douchette) pour créer une réception
+MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE = Afficher des remises sur les prix en fonction des DDM
+MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO = % de remise prix promo
+MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI = % de remise prix antigaspi
 
 #
 # About page
@@ -68,3 +71,4 @@ MMIProductsDLUOStockCalculate = Recalculer le stock
 # Extrafields
 #
 Extrafield_kit_ddm_any = Compter aussi les antigaspi dans le kit (prendre tout)
+Extrafield_antigaspi_autoremove_disabled = Désactiver la suppression automatique lorsquece lot est périmé

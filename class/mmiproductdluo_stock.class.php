@@ -43,20 +43,22 @@ public function lot_ddm_old_remove()
 		0=>[], // Sorties effectives
 		1=>[], // Stock réservé
 		2=>[], // Erreur de sortie
+		3=>[], // Lots bloqués
 	];
 
 	$reserved = [];
 
 	// Ordonner les stocks pour sortir d'abord ce qui est dans le dépôt, lorsqu'on a un stock réservé pour des commandes pas expédiées
-	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.sellby, UNIX_TIMESTAMP(pl.sellby) AS sellby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`sellby`, NOW()) AS `datediff`, p.pmp, p.cost_price
+	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.sellby, UNIX_TIMESTAMP(pl.sellby) AS sellby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`sellby`, NOW()) AS `datediff`, p.pmp, p.cost_price, pl2.antigaspi_autoremove_disabled
 		FROM `'.MAIN_DB_PREFIX.'product_lot` pl
+		LEFT JOIN `'.MAIN_DB_PREFIX.'product_lot_extrafields` pl2 ON pl2.fk_object=pl.rowid
 		INNER JOIN `'.MAIN_DB_PREFIX.'product` p ON p.rowid=pl.fk_product
 		INNER JOIN `'.MAIN_DB_PREFIX.'product_stock` s ON s.fk_product=pl.fk_product
 		INNER JOIN `'.MAIN_DB_PREFIX.'product_batch` pb ON pb.fk_product_stock=s.rowid AND pb.batch=pl.batch
 		WHERE DATEDIFF(pl.`sellby`, NOW()) < -'.$datediff.' AND pb.qty>0
 		ORDER BY pl.fk_product, pl.batch, s.rowid';
 	//return $sql;
-	//echo $sql;
+	//echo $sql; die();
 	$q = $this->db->query($sql);
 	foreach($q as $r) {
 		// Check
@@ -66,6 +68,12 @@ public function lot_ddm_old_remove()
 		//return $r;
 		$product = new Product($this->db);
 		$product->fetch($r['fk_product']);
+
+		// Lot bloqué
+		if ($r['antigaspi_autoremove_disabled']) {
+			$list[3][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : Lot bloqué NON supprimé '.$r['qty'];
+			continue;
+		}
 		
 		// Stock réservé en dehors des kits, pour lesquels on tape dans le stock forcément en ddm non dépassée, puis même pas en antigaspi
 		if (!isset($reserved[$r['fk_product']]))
@@ -128,10 +136,14 @@ public function lot_ddm_old_remove()
 			.(!empty($list[1])
 				?'Les produits suivant on été conservés (stock réservé) :'."\r\n"
 				.'- '.implode("\r\n- ", $list[1])."\r\n"
-				:'')
+			:'')
 			.(!empty($list[2])
 				?'Erreur de destockage pour les produits :'."\r\n"
 				.'- '.implode("\r\n- ", $list[2])."\r\n"
+				:'')
+			.(!empty($list[3])
+				?'Lots pérmiés MAIS volontairement marqués à ne pas déstoquer :'."\r\n"
+				.'- '.implode("\r\n- ", $list[3])."\r\n"
 				:''),
 			'From: '.$email_from."\n".'Content-Type: text/plain; charset=UTF-8'."\n");
 

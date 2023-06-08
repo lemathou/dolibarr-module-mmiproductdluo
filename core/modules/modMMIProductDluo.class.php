@@ -424,7 +424,10 @@ class modMMIProductDluo extends DolibarrModules
 		// Create extrafields during init
 		include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
+		// Produit
         $extrafields->addExtraField('kit_ddm_any', $langs->trans('Extrafield_kit_ddm_any'), 'boolean', 10, '', 'product', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_kit_ddm_any'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// Lot
+        $extrafields->addExtraField('antigaspi_autoremove_disabled', $langs->trans('Extrafield_antigaspi_autoremove_disabled'), 'boolean', 10, '', 'product_lot', 0, 0, '', "", 1, '', -1, "", '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
 
 		// Permissions
 		$this->remove($options);
