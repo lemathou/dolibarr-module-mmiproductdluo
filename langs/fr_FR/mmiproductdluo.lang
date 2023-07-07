@@ -44,6 +44,8 @@ MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE = Afficher des remises sur les prix en fo
 MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO = % de remise prix promo
 MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI = % de remise prix antigaspi
 
+RECEPTION_BATCH_MUST_HAVE_DATE = Date (DDM ou DLC) obligatoire pour un lot
+
 #
 # About page
 #
