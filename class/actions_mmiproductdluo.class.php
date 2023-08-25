@@ -189,7 +189,7 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         if ($this->in_context($parameters, 'stockreplenishlist')) {
             $print = '';
             if ($this->p_active)
-                $print = ' AND p2.p_active=1';
+                $print = ' AND (p2.p_active=1 AND p2.p_decli_disabled IS NULL)';
         }
     
         if (! $error)
