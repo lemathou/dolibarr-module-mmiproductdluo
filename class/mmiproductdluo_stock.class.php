@@ -48,7 +48,9 @@ public function lot_ddm_old_remove()
 
 	$reserved = [];
 
+	// Lots avec du stock et DDM dépassée depuis MMIPRODUCTDLUO_PERIME (60 jours par défaut)
 	// Ordonner les stocks pour sortir d'abord ce qui est dans le dépôt, lorsqu'on a un stock réservé pour des commandes pas expédiées
+	// @todo voir comment ordonner les dépôts en tapant en premier dans ceux choisis en cas de stock réservé
 	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.sellby, UNIX_TIMESTAMP(pl.sellby) AS sellby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`sellby`, NOW()) AS `datediff`, p.pmp, p.cost_price, pl2.antigaspi_autoremove_disabled
 		FROM `'.MAIN_DB_PREFIX.'product_lot` pl
 		LEFT JOIN `'.MAIN_DB_PREFIX.'product_lot_extrafields` pl2 ON pl2.fk_object=pl.rowid
@@ -68,14 +70,15 @@ public function lot_ddm_old_remove()
 		//return $r;
 		$product = new Product($this->db);
 		$product->fetch($r['fk_product']);
+		$product_info = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'];
 
 		// Lot bloqué
 		if ($r['antigaspi_autoremove_disabled']) {
-			$list[3][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : Lot bloqué NON supprimé '.$r['qty'];
+			$list[3][] = $product_info.' : Lot bloqué NON supprimé '.$r['qty'];
 			continue;
 		}
 		
-		// Stock réservé en dehors des kits, pour lesquels on tape dans le stock forcément en ddm non dépassée, puis même pas en antigaspi
+		// Stock réservé en dehors des kits, pour lesquels on tape dans le stock forcément en ddm non dépassée (sauf exception que je néglige), puis même pas en antigaspi
 		if (!isset($reserved[$r['fk_product']]))
 			$reserved[$r['fk_product']] = $this->reserved_qty($r['fk_product'], 'outkit_only');
 		//return $reserved;
@@ -83,14 +86,14 @@ public function lot_ddm_old_remove()
 		$sens = 1;
 		// Tout réservé => Pas de mouvement
 		if ($reserved[$r['fk_product']] >= $r['qty']) {
-			$list[1][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : quantité réservée '.$r['qty'];
+			$list[1][] = $product_info.' : quantité réservée '.$r['qty'];
 			$qte = 0;
 			$reserved[$r['fk_product']] -= $r['qty'];
 			continue;
 		}
 		// Calcul en soustrayant le stock réservé
-		elseif ($reserved[$r['fk_product']] && $reserved[$r['fk_product']] < $r['qty']) {
-			$list[1][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : quantité réservée '.$reserved[$r['fk_product']];
+		elseif ($reserved[$r['fk_product']]) { // && $reserved[$r['fk_product']] < $r['qty']
+			$list[1][] = $product_info.' : quantité réservée '.$reserved[$r['fk_product']];
 			$qte = $r['qty'] - $reserved[$r['fk_product']];
 			$reserved[$r['fk_product']] = 0;
 		}
@@ -119,7 +122,7 @@ public function lot_ddm_old_remove()
 			// $disablestockchangeforsubproduct = 0
 		);
 
-		$list[$res>0 ?0 :2][] = $product->ref.' - '.$product->label.' - lot '.$r['batch'].' - DDM '.$r['sellby'].' : quantité supprimée '.$qte;
+		$list[$res>0 ?0 :2][] = $product_info.' : quantité supprimée '.$qte;
 	}
 
 	// On a forcément des choses à envoyer !
