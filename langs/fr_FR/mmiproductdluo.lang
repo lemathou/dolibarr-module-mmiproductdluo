@@ -43,7 +43,7 @@ MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN = Recherche par EAN (douchette
 MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE = Afficher des remises sur les prix en fonction des DDM
 MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO = % de remise prix promo
 MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI = % de remise prix antigaspi
-
+MMIPRODUCTDLUO_KIT_SHOW_LOT_STOCK = Voir les stock par DDM dans le détail des kits
 RECEPTION_BATCH_MUST_HAVE_DATE = Date (DDM ou DLC) obligatoire pour un lot
 
 #

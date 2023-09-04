@@ -344,6 +344,12 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 				$print .= '<td class="right">'.$langs->trans("Barcode").'</td>';
 			}
 		}
+		elseif ($this->in_context($parameters, 'productcompositioncard')) {
+			// Qty in Lots
+			if (!empty($conf->global->MMIPRODUCTDLUO_KIT_SHOW_LOT_STOCK)) {
+				$print .= '<td class="center">'.$langs->trans('DDM').'</td>';
+			}
+		}
     
         if (! $error)
         {
@@ -384,6 +390,31 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 					$print .= '<td class="barcode right" data-pos="'.$pos.'">'.$objp->barcode.'</td>';
 					$pos++;
 				}
+			}
+		}
+		elseif ($this->in_context($parameters, 'productcompositioncard')) {
+			// Qty in Lots
+			$value = $parameters['value'];
+			$timenow = time();
+			$datenow = date('Y-m-d', $timenow);
+			$datemonth = date('Y-m-d', $timenow+30*86400);
+			if (!empty($conf->global->MMIPRODUCTDLUO_KIT_SHOW_LOT_STOCK)) {
+				$sql = "SELECT pl.rowid, pl.sellby ddm, pl.batch, SUM(IF(pl2.qty>0,pl2.qty,0)) qty"
+				.' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
+				.' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
+				.' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch'
+				.' WHERE pl.fk_product = '.$value['id'].' AND pl2.qty!=0'
+				.' GROUP BY pl.rowid';
+				$q = $this->db->query($sql);
+				//var_dump($q, $this->db->lasterror);
+				$ddm = '';
+				if ($q) {
+					while($row = $q->fetch_assoc()) {
+						$ddm .= '<span style="'.($row['ddm']<$datenow ?'color: red;' :($row['ddm']<$datemonth ?'color: orange;' :'')).'">'.dol_print_date($row['ddm'], "%d/%m/%Y").'</span>&nbsp;:&nbsp;'.$row['qty'].'<br />';
+					}
+				}
+				$print .= '<td class="right">'.$ddm.'</td>';
+				//var_dump($value); die();
 			}
 		}
     

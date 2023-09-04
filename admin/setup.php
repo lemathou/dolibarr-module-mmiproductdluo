@@ -35,6 +35,7 @@ $arrayofparameters = array(
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO'=>array('type'=>'string','enabled'=>1),
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECT'=>array('type'=>'string','enabled'=>1),
 	'MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN'=>array('type'=>'yesno', 'enabled'=>1),
+	'MMIPRODUCTDLUO_KIT_SHOW_LOT_STOCK'=>array('type'=>'yesno', 'enabled'=>1),
 	
 	'MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE'=>array('type'=>'yesno','enabled'=>1),
 	'MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO'=>array('type'=>'numeric','enabled'=>1, 'default'=>'10'),
