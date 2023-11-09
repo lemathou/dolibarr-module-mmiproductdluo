@@ -223,16 +223,16 @@ public function stock_calculate($fk_product)
 		$qte_new = floor(($row['qte']-$qte_reserved)/$row['qty']);
 		//$row['qte_tot'];
 		if (is_null($qte) || $qte_new<$qte)
-			$qte = $qte_new;
+			$qte = max(0, $qte_new);
 	}
 
 	// On n'a pas a prendre en compte les encours de kit car on a systématiquement les élements qui le composent dans les commandes.
 
 	$product = new Product($this->db);
 	$product->fetch($fk_product);
-
+	
 	// Pas de mouvement si pas de changement
-	if ($product->stock_reel != $qte) {
+	if (!is_null($qte) && $product->stock_reel != $qte) {
 		$sens = $qte-$product->stock_reel > 0 ?0 :1;
 		$qte = $product->stock_reel-$qte > 0 ?$product->stock_reel-$qte :$qte-$product->stock_reel;
 		//trigger_error($qte);
