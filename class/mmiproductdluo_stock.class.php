@@ -51,7 +51,7 @@ public function lot_ddm_old_remove()
 	// Lots avec du stock et DDM dépassée depuis MMIPRODUCTDLUO_PERIME (60 jours par défaut)
 	// Ordonner les stocks pour sortir d'abord ce qui est dans le dépôt, lorsqu'on a un stock réservé pour des commandes pas expédiées
 	// @todo voir comment ordonner les dépôts en tapant en premier dans ceux choisis en cas de stock réservé
-	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.sellby, UNIX_TIMESTAMP(pl.sellby) AS sellby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`sellby`, NOW()) AS `datediff`, p.pmp, p.cost_price, pl2.antigaspi_autoremove_disabled
+	$sql = 'SELECT p.ref, pl.fk_product, pl.batch, pl.eatby, IF(pl.eatby, UNIX_TIMESTAMP(pl.eatby), "") AS eatby_ts, pl.sellby, IF(pl.sellby, UNIX_TIMESTAMP(pl.sellby), "") AS sellby_ts, pb.fk_product_stock, s.fk_entrepot, pb.qty, DATEDIFF(pl.`sellby`, NOW()) AS `datediff`, p.pmp, p.cost_price, pl2.antigaspi_autoremove_disabled
 		FROM `'.MAIN_DB_PREFIX.'product_lot` pl
 		LEFT JOIN `'.MAIN_DB_PREFIX.'product_lot_extrafields` pl2 ON pl2.fk_object=pl.rowid
 		INNER JOIN `'.MAIN_DB_PREFIX.'product` p ON p.rowid=pl.fk_product
@@ -113,8 +113,8 @@ public function lot_ddm_old_remove()
 			$sens,
 			'Sortie Antigaspi RAZ pour panier',
 			$price,
-			$r['sellby_ts'], // dlc
-			'', // dluo
+			$r['eatby_ts'], // dlc
+			$r['sellby_ts'], // dluo
 			$r['batch'],
 			'', // $inventorycode
 			// origin ='' : project ?
@@ -122,7 +122,7 @@ public function lot_ddm_old_remove()
 			// $disablestockchangeforsubproduct = 0
 		);
 
-		$list[$res>0 ?0 :2][] = $product_info.' : quantité supprimée '.$qte;
+		$list[$res>0 ?0 :2][] = $info = $product_info.' : quantité supprimée '.$qte;
 	}
 
 	// On a forcément des choses à envoyer !
