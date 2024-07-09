@@ -394,6 +394,7 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 		}
 		elseif ($this->in_context($parameters, 'productcompositioncard')) {
 			// Qty in Lots
+			//var_dump($object);
 			$value = $parameters['value'];
 			$timenow = time();
 			$datenow = date('Y-m-d', $timenow);
@@ -403,8 +404,9 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 				.' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
 				.' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
 				.' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch'
-				.' WHERE pl.fk_product = '.$value['id'].' AND pl2.qty!=0'
+				.' WHERE pl.fk_product = '.$object->id.' AND pl2.qty!=0'
 				.' GROUP BY pl.rowid';
+				//echo $sql;
 				$q = $this->db->query($sql);
 				//var_dump($q, $this->db->lasterror);
 				$ddm = '';
