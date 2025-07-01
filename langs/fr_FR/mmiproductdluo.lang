@@ -26,7 +26,6 @@ ModuleMMIProductDluoDesc = Réapprovisionnements, calcul du stock des kits
 # Admin page
 #
 MMIProductDluoSetup = MMIProductDluo setup
-Settings = Settings
 MMIProductDluoSetupPage = MMIProductDluo setup page
 MMIPRODUCTDLUO_PERIME = Délai péremption après DDM
 MMIPRODUCTDLUO_PERIMETooltip = Défaut: 59, càd que 59 jours après la DDM, un produit est retiré de la vente et il reste 1 mois pour le vendre au rabais dans des paniers
@@ -49,7 +48,6 @@ RECEPTION_BATCH_MUST_HAVE_DATE = Date (DDM ou DLC) obligatoire pour un lot
 #
 # About page
 #
-About = About
 MMIProductDluoAbout = About MMIProductDluo
 MMIProductDluoAboutPage = MMIProductDluo about page
 
