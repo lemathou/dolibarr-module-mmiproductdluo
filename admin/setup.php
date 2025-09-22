@@ -42,6 +42,7 @@ $arrayofparameters = array(
 	'MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI'=>array('type'=>'numeric','enabled'=>1, 'default'=>'25'),
 	
 	'RECEPTION_BATCH_MUST_HAVE_DATE'=>array('type'=>'yesno','enabled'=>1),
+	'STOCK_HIDE_ALL_EMPTY_BATCH_BY_DEFAULT'=>array('type'=>'yesno','enabled'=>1),
 );
 
 require_once('../../mmicommon/admin/mmisetup_1.inc.php');
