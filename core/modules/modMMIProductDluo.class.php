@@ -121,6 +121,8 @@ class modMMIProductDluo extends DolibarrModules
 				'stockreplenishlist',
 				'ordersupplierdispatch',
 				'productcompositioncard',
+				'product_lotlist',
+				'stockproductcard',
 				//   'data' => array(
 				//       'hookcontext1',
 				//       'hookcontext2',

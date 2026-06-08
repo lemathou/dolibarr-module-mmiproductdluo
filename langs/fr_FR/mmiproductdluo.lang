@@ -73,3 +73,10 @@ MMIProductsDLUOStockCalculate = Recalculer le stock
 #
 Extrafield_kit_ddm_any = Compter aussi les antigaspi dans le kit (prendre tout)
 Extrafield_antigaspi_autoremove_disabled = Désactiver la suppression automatique lorsquece lot est périmé
+
+#
+# Bascule rapide anti-gaspi (liste des lots + onglet stock produit)
+#
+AntigaspiToggleColTitle = Anti-gaspi
+AntigaspiAutoremoveActiveHelp = Sortie auto anti-gaspi active pour ce lot. Cliquer pour la désactiver (protéger le lot).
+AntigaspiAutoremoveDisabledHelp = Sortie auto anti-gaspi désactivée pour ce lot (lot protégé). Cliquer pour la réactiver.
