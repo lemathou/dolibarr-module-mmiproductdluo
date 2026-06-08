@@ -71,6 +71,12 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 			<?php
 			}
 		}
+		// Onglet stock de la fiche produit => charge le JS qui injecte les boutons bascule anti-gaspi sur chaque ligne de lot
+		elseif ($this->in_context($parameters, 'stockproductcard')) {
+			if (!empty($object->id)) {
+				echo $this->antigaspiAssets($object->id);
+			}
+		}
 
 		return 0;
 	}
@@ -350,7 +356,12 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 				$print .= '<td class="center">'.$langs->trans('DDM').'</td>';
 			}
 		}
-    
+		elseif ($this->in_context($parameters, 'product_lotlist')) {
+			// Colonne bascule rapide anti-gaspi (liste globale des lots)
+			$langs->load('mmiproductdluo@mmiproductdluo');
+			$print .= '<th class="center">'.$langs->trans('AntigaspiToggleColTitle').'</th>';
+		}
+
         if (! $error)
         {
             $this->resprints = $print;
@@ -419,7 +430,14 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 				//var_dump($value); die();
 			}
 		}
-    
+		elseif ($this->in_context($parameters, 'product_lotlist')) {
+			// Bouton bascule rapide anti-gaspi (liste globale des lots)
+			$objp = $parameters['obj'];
+			$lotid = !empty($objp->rowid) ? (int) $objp->rowid : 0;
+			$state = !empty($objp->options_antigaspi_autoremove_disabled) ? 1 : 0;
+			$print .= '<td class="center">'.$this->antigaspiButtonHtml($lotid, $state).'</td>';
+		}
+
         if (! $error)
         {
             $this->resprints = $print;
@@ -430,6 +448,86 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             $this->errors[] = 'Error message';
             return -1;
         }
+    }
+
+    /**
+     * Charge les assets (CSS + config + JS) une seule fois sur la liste globale des lots.
+     */
+    function printFieldListFooter($parameters, &$object, &$action, $hookmanager)
+    {
+        if ($this->in_context($parameters, 'product_lotlist')) {
+            $this->resprints = $this->antigaspiAssets(0);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Construit le bouton <a> de bascule de l'extrafield antigaspi_autoremove_disabled d'un lot.
+     * Markup identique côté JS (buildButton) pour un comportement uniforme.
+     *
+     * @param int $lotid  rowid du product_lot
+     * @param int $state  1 = sortie auto désactivée (lot protégé), 0 = sortie auto active
+     * @return string
+     */
+    protected function antigaspiButtonHtml($lotid, $state)
+    {
+        global $langs;
+
+        $langs->load('mmiproductdluo@mmiproductdluo');
+        if (empty($lotid)) {
+            return '';
+        }
+        $state = $state ? 1 : 0;
+        $title = $state ? $langs->trans('AntigaspiAutoremoveDisabledHelp') : $langs->trans('AntigaspiAutoremoveActiveHelp');
+
+        return '<a href="#" class="mmi-antigaspi-toggle '.($state ? 'mmi-antigaspi-on' : 'mmi-antigaspi-off').'"'
+            .' data-lotid="'.((int) $lotid).'" data-state="'.$state.'" title="'.dol_escape_htmltag($title).'">'
+            .'<span class="fa '.($state ? 'fa-lock' : 'fa-unlock-alt').'"></span></a>';
+    }
+
+    /**
+     * Émet (une seule fois par page) le CSS, la configuration JS et le chargement du script.
+     *
+     * @param int $fk_product  si > 0, demande au JS d'injecter les boutons dans l'onglet stock du produit
+     * @return string
+     */
+    protected function antigaspiAssets($fk_product = 0)
+    {
+        global $langs;
+
+        static $done = false;
+        if ($done) {
+            return '';
+        }
+        $done = true;
+
+        $langs->load('mmiproductdluo@mmiproductdluo');
+
+        $ajaxurl = dol_buildpath('/mmiproductdluo/ajax/antigaspi_toggle.php', 1);
+        $jsurl = dol_buildpath('/mmiproductdluo/js/antigaspi.js', 1);
+
+        $conf = array(
+            'ajaxurl' => $ajaxurl,
+            'token' => newToken(),
+            'fkproduct' => $fk_product ? (int) $fk_product : 0,
+            'labels' => array(
+                'on' => $langs->trans('AntigaspiAutoremoveDisabledHelp'),
+                'off' => $langs->trans('AntigaspiAutoremoveActiveHelp'),
+            ),
+        );
+
+        $out = '<style>'
+            .'.mmi-antigaspi-toggle{text-decoration:none;cursor:pointer;}'
+            .'.mmi-antigaspi-toggle .fa{font-size:1.05em;}'
+            .'.mmi-antigaspi-on .fa{color:#bc9526;}'
+            .'.mmi-antigaspi-off .fa{color:#bbb;}'
+            .'.mmi-antigaspi-toggle.mmi-loading{opacity:.4;pointer-events:none;}'
+            .'</style>';
+        $out .= '<script>window.mmiAntigaspiConf = '.json_encode($conf).';</script>';
+        $out .= '<script src="'.$jsurl.'"></script>';
+
+        return $out;
     }
 }
 

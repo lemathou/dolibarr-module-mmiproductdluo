@@ -51,3 +51,10 @@ MyPageName = My page name
 #
 MyWidget = My widget
 MyWidgetDescription = My widget description
+
+#
+# Anti-gaspi quick toggle (lot list + product stock tab)
+#
+AntigaspiToggleColTitle = Anti-waste
+AntigaspiAutoremoveActiveHelp = Auto stock removal active for this lot. Click to disable it (protect the lot).
+AntigaspiAutoremoveDisabledHelp = Auto stock removal disabled for this lot (protected). Click to re-enable it.
