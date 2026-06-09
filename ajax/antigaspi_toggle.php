@@ -127,9 +127,12 @@ if ($action == 'toggle') {
 	$new = $current ? 0 : 1;
 	$lot->array_options['options_'.$EXTRAKEY] = $new;
 
-	$result = $lot->insertExtraFields('', $user);
+	// On passe par update() (et pas insertExtraFields seul) pour persister l'extrafield
+	// ET déclencher le trigger PRODUCTLOT_MODIFY -> synchro Dolibarr -> PrestaShop (mmiprestasync),
+	// exactement comme une édition normale de la fiche lot.
+	$result = $lot->update($user);
 	if ($result < 0) {
-		echo json_encode(array('success' => 0, 'error' => ($lot->error ? $lot->error : 'Update failed')));
+		echo json_encode(array('success' => 0, 'error' => ($lot->error ? $lot->error : (!empty($lot->errors) ? implode(', ', $lot->errors) : 'Update failed'))));
 		exit;
 	}
 
