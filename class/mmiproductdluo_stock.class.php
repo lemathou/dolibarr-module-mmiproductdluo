@@ -196,14 +196,26 @@ public function stock_calculate($fk_product)
 	if (!empty($fk_product_stock) && class_exists('mmi_prestasync'))
 		mmi_prestasync::ws_trigger('stock', 'product_stock', 'osync', $fk_product_stock);
 
-	// On calcule le stock des produits à DDM non courte
-	$sql = 'SELECT p.rowid, pc.qty, SUM(IF((DATEDIFF(l.sellby, NOW()) >= '.$datediff.' OR pp2.kit_ddm_any=1) AND b.qty IS NOT NULL, b.qty, 0)) as qte, SUM(IF(b.qty IS NOT NULL, b.qty, 0)) as qte_tot
+	// On calcule le stock : composants à lots => stock DDM non courte ;
+	// composants sans lot (non-DDM) => repli sur le stock physique product_stock.reel (RM2407).
+	// L'ancienne requête faisait des INNER JOIN sur product_batch/product_lot : tout composant
+	// sans lot était invisible au min (stock box surévalué, voire non recalculé si aucun lot).
+	$sql = 'SELECT p.rowid, pc.qty, COALESCE(bt.qte_valid, st.reel_tot, 0) as qte, COALESCE(st.reel_tot, 0) as qte_tot
 		FROM `'.MAIN_DB_PREFIX.'product_association` pc
-		LEFT JOIN `'.MAIN_DB_PREFIX.'product_extrafields` pp2 ON pp2.fk_object=pc.fk_product_pere
 		INNER JOIN `'.MAIN_DB_PREFIX.'product` p ON p.rowid=pc.fk_product_fils
-		INNER JOIN `'.MAIN_DB_PREFIX.'product_stock` s ON s.fk_product=p.rowid
-		INNER JOIN `'.MAIN_DB_PREFIX.'product_batch` b ON b.fk_product_stock=s.rowid
-		INNER JOIN `'.MAIN_DB_PREFIX.'product_lot` l ON l.fk_product=p.rowid AND l.batch=b.batch
+		LEFT JOIN (
+			SELECT s.fk_product, SUM(s.reel) as reel_tot
+			FROM `'.MAIN_DB_PREFIX.'product_stock` s
+			GROUP BY s.fk_product
+		) st ON st.fk_product=p.rowid
+		LEFT JOIN (
+			SELECT s.fk_product, SUM(IF((DATEDIFF(l.sellby, NOW()) >= '.$datediff.' OR pp2.kit_ddm_any=1) AND b.qty IS NOT NULL, b.qty, 0)) as qte_valid
+			FROM `'.MAIN_DB_PREFIX.'product_stock` s
+			INNER JOIN `'.MAIN_DB_PREFIX.'product_batch` b ON b.fk_product_stock=s.rowid
+			INNER JOIN `'.MAIN_DB_PREFIX.'product_lot` l ON l.fk_product=s.fk_product AND l.batch=b.batch
+			LEFT JOIN `'.MAIN_DB_PREFIX.'product_extrafields` pp2 ON pp2.fk_object='.$fk_product.'
+			GROUP BY s.fk_product
+		) bt ON bt.fk_product=p.rowid
 		WHERE pc.fk_product_pere='.$fk_product.'
 			AND pc.qty>0
 		GROUP BY p.rowid';
