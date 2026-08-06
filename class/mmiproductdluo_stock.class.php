@@ -322,7 +322,7 @@ public function reserved_qty($fk_product, $kit_check='inkit_only')
 	// e.fk_statut IN (1, 2) => validated et closed
 	$sql = 'SELECT COUNT(DISTINCT e.fk_soc) as nb_customers, COUNT(DISTINCT e.rowid) as nb, COUNT(ed.rowid) as nb_rows, SUM(ed.qty) as qty
 		FROM '.MAIN_DB_PREFIX.'expeditiondet as ed
-		INNER JOIN '.MAIN_DB_PREFIX.'commandedet as cd ON cd.rowid=ed.fk_origin_line
+		INNER JOIN '.MAIN_DB_PREFIX.'commandedet as cd ON cd.rowid=ed.fk_elementdet
 		LEFT JOIN '.MAIN_DB_PREFIX.'commandedet_extrafields as cd2 ON cd2.fk_object = cd.rowid
 		INNER JOIN '.MAIN_DB_PREFIX.'commande as c ON c.rowid = cd.fk_commande
 		INNER JOIN '.MAIN_DB_PREFIX.'expedition as e ON e.rowid = ed.fk_expedition
