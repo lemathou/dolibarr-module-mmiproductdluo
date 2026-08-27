@@ -309,10 +309,23 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         $print = '';
     
         if ($this->in_context($parameters, 'stockreplenishlist')) {
-            //var_dump($parameters);
-            $print = '<input type="hidden" name="stockalertzero"'.($this->stockalertzero ?' value="on"' :'').' />'
+            // RM2869 — ce hook alimente la LIGNE DE FILTRES : il doit rendre autant de
+            // <td> que printFieldListTitle rend de colonnes (5), sinon la ligne de filtres
+            // est plus courte que celle des titres — rien au-dessus des colonnes DDM, et le
+            // bloc de boutons de recherche décalé de 5 colonnes vers la gauche.
+            // Les <input type="hidden"> étaient posés NUS dans le <tr> : le parseur HTML les
+            // sort de la table (foster parenting). Ils partaient quand même avec le
+            // formulaire — d'où le fait que ça « marchait » — mais ne comptaient pour
+            // aucune cellule. Ils vivent désormais DANS la première cellule.
+            $print = '<td class="liste_titre">'
+            .'<input type="hidden" name="stockalertzero"'.($this->stockalertzero ?' value="on"' :'').' />'
             .'<input type="hidden" name="useddm30asstock"'.($this->useddm30asstock ?' value="on"' :'').' />'
-            .'<input type="hidden" name="p_active"'.($this->p_active ?' value="on"' :'').' />';
+            .'<input type="hidden" name="p_active"'.($this->p_active ?' value="on"' :'').' />'
+            .'</td>'
+            .'<td class="liste_titre">&nbsp;</td>'
+            .'<td class="liste_titre">&nbsp;</td>'
+            .'<td class="liste_titre">&nbsp;</td>'
+            .'<td class="liste_titre">&nbsp;</td>';
         }
     
         if (! $error)
