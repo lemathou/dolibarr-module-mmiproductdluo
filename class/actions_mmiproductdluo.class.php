@@ -111,6 +111,23 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 
     //
 
+    /**
+     * Sous-requête des quantités en lot, bornée au MÊME périmètre d'entrepôts que le
+     * `stock_physique` du coeur (RM2867). Sans ce bornage, les colonnes DDM comptaient
+     * TOUS les entrepôts alors que la colonne Stock est filtrée : deux nombres côte à côte
+     * qui ne parlent pas du même stock dès qu'un entrepôt est sélectionné.
+     */
+    protected function ddmSubquery($parameters, $datecond, $select = 'SUM(pl2.qty)')
+    {
+        $warehouses = $parameters['list_warehouse_selected'] ?? ($parameters['list_warehouse'] ?? '');
+        $scope = ($warehouses === '' ? '' : ' AND s2.fk_entrepot IN ('.$this->db->sanitize($warehouses).')');
+        return '(SELECT '.$select
+            .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
+            .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'.$scope
+            .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
+            .' WHERE pl.fk_product = p.rowid'.($datecond ? ' AND '.$datecond : '').')';
+    }
+
     function printFieldListSelect($parameters, &$object, &$action, $hookmanager)
     {
         $error = 0; // Error counter
@@ -118,35 +135,24 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         
         if ($this->in_context($parameters, 'stockreplenishlist')) {
             // Stock DDM >= 30j
-            $print .= ', COALESCE((SELECT SUM(pl2.qty)'
-            .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.sellby, NOW()) > 30), 0) AS ddm_qty_30';
-            // @todo : mettre le filtrage par stock !
+            $print .= ', COALESCE('.$this->ddmSubquery($parameters, 'DATEDIFF(pl.sellby, NOW()) > 30').', 0) AS ddm_qty_30';
 
             // Stock DDM >= 3j
-            $print .= ', COALESCE((SELECT SUM(pl2.qty)'
-            .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.sellby, NOW()) > 2 AND DATEDIFF(pl.sellby, NOW()) <= 30), 0) AS ddm_qty_2';
+            $print .= ', COALESCE('.$this->ddmSubquery($parameters, 'DATEDIFF(pl.sellby, NOW()) > 2 AND DATEDIFF(pl.sellby, NOW()) <= 30').', 0) AS ddm_qty_2';
 
             // Stock DDM >= -45j
-            $print .= ', COALESCE((SELECT SUM(pl2.qty)'
-            .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid AND DATEDIFF(pl.sellby, NOW()) > -45 AND DATEDIFF(pl.sellby, NOW()) <= 2), 0) AS ddm_qty_m45';
+            $print .= ', COALESCE('.$this->ddmSubquery($parameters, 'DATEDIFF(pl.sellby, NOW()) > -45 AND DATEDIFF(pl.sellby, NOW()) <= 2').', 0) AS ddm_qty_m45';
+
+            // Le produit est-il RÉELLEMENT géré en lots ? (RM2867)
+            // Sans cet indicateur, `COALESCE(ddm_qty_30, 0)` rend « aucun lot » indiscernable
+            // de « 0 unité à plus de 30 jours » : un produit non périssable, jamais concerné
+            // par la DDM, passait sous tous les seuils par construction.
+            $print .= ', EXISTS(SELECT 1 FROM '.MAIN_DB_PREFIX.'product_lot as pl3'
+                .' WHERE pl3.fk_product = p.rowid) AS ddm_has_lot';
 
             // liste Stock lots
-            $print .= ', (SELECT GROUP_CONCAT(pl.sellby, " : ", pl2.qty SEPARATOR "'."\n".'")'
-            .' FROM '.MAIN_DB_PREFIX.'product_lot as pl'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_stock as s2 ON s2.fk_product = pl.fk_product'
-            .' INNER JOIN '.MAIN_DB_PREFIX.'product_batch as pl2 ON pl2.fk_product_stock = s2.rowid AND pl2.batch = pl.batch AND pl2.qty>0'
-            .' WHERE pl.fk_product = p.rowid) AS ddm';
-
-            //$print = ', GROUP_CONCAT(pl.sellby SEPARATOR " ") ddm_dates, SUM(pl2.qty) ddm_qte';
+            $print .= ', '.$this->ddmSubquery($parameters, '',
+                'GROUP_CONCAT(pl.sellby, " : ", pl2.qty ORDER BY pl.sellby SEPARATOR "'."\n".'")').' AS ddm';
         }
 		elseif ($this->in_context($parameters, 'ordersupplierdispatch')) {
 			$print .= ', p.barcode';
@@ -216,13 +222,20 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         $print = '';
     
         if ($this->in_context($parameters, 'stockreplenishlist')) {
-            if ($this->useddm30asstock) {
-                if ($this->stockalertzero)
-                    $print = ' OR (ddm_qty_30 <= IF(p.seuil_stock_alerte IS NOT NULL, p.seuil_stock_alerte, 0))';
-                else
-                    $print = ' OR (ddm_qty_30 < p.seuil_stock_alerte)';
-            }
-            elseif ($this->stockalertzero) {
+            // RM2867 — « Utiliser DDM > 30j comme stock physique » ne passe PLUS par ici :
+            // c'est une SUBSTITUTION de l'expression de stock (voir printFieldListStock), pas
+            // un ` OR (…)` ajouté au groupe. L'ancien OR comparait de surcroît une quantité
+            // brute au seuil `p.seuil_stock_alerte` en dur, là où le coeur compare le seuil
+            // combiné `pse`/`p` à un stock PROJETÉ (commandes, expéditions, réceptions).
+            //
+            // Reste ici « Stock alerte non renseigné à 0 », qui élargit bien le groupe
+            // « à réapprovisionner » — le coeur injecte désormais ce retour DANS la
+            // parenthèse du groupe (RM2867), et non plus après.
+            // « Stock alerte non renseigné à 0 » : comportement INCHANGÉ (même clause, même
+            // point d'injection). Il porte le même défaut de priorité — son ` OR (…)` atterrit
+            // hors des parenthèses du groupe — mais le corriger changerait un filtre que la
+            // cliente utilise : traité à part, hors de ce ticket.
+            if ($this->stockalertzero) {
                 $print = ' OR (stock_physique <= IF(p.seuil_stock_alerte IS NOT NULL, p.seuil_stock_alerte, 0))';
             }
         }
@@ -237,6 +250,27 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             $this->errors[] = 'Error message';
             return -1;
         }
+    }
+
+    /**
+     * Substitue l'expression de STOCK de la clause HAVING (RM2867).
+     *
+     * « Utiliser DDM > 30j comme stock physique » : le coeur évalue alors TOUS ses filtres
+     * (stock désiré, seuil d'alerte, « alerte seulement ») contre la quantité en lot à plus
+     * de 30 jours, au lieu du stock physique — ce que dit le libellé de la case.
+     *
+     * Repli pour les produits SANS lot : leur stock physique. Ils ne sont pas gérés en DDM ;
+     * leur substituer 0 les ferait passer sous tous les seuils par construction (15 produits
+     * concernés sur la base de dev).
+     */
+    function printFieldListStock($parameters, &$object, &$action, $hookmanager)
+    {
+        if ($this->in_context($parameters, 'stockreplenishlist') && $this->useddm30asstock) {
+            $sqlstock = $parameters['sqlstock'] ?? 'stock_physique';
+            $this->resprints = 'IF(ddm_has_lot, ddm_qty_30, '.$sqlstock.')';
+        }
+
+        return 0;
     }
 
     /**
