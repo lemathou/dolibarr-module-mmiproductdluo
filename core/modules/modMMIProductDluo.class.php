@@ -115,6 +115,7 @@ class modMMIProductDluo extends DolibarrModules
 			),
 			// Set here all hooks context managed by module. To find available hook context, make a "grep -r '>initHooks(' *" on source code. You can also set hook context to 'all'
 			'hooks' => array(
+				'ordercard',            // RM3040 : saisie de commande = CAISSE (douchette + choix du lot)
 				'receptioncard',
 				'expeditioncard',
 				'productcard',
@@ -431,6 +432,11 @@ class modMMIProductDluo extends DolibarrModules
         $extrafields->addExtraField('kit_ddm_any', $langs->trans('Extrafield_kit_ddm_any'), 'boolean', 10, '', 'product', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_kit_ddm_any'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
 		// Lot
         $extrafields->addExtraField('antigaspi_autoremove_disabled', $langs->trans('Extrafield_antigaspi_autoremove_disabled'), 'boolean', 10, '', 'product_lot', 0, 0, '', "", 1, '', -1, "", '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// RM3040 — lot retenu pour CETTE ligne de commande. Renseigné soit à la caisse
+		// (lecture code-barres : lot unique retenu d'office, sinon choisi), soit par la
+		// synchro PrestaShop depuis l'allocation figée. Exploité au picking : le BL suit ce
+		// lot au lieu de re-décider en FIFO.
+        $extrafields->addExtraField('mmi_lot', $langs->trans('Extrafield_mmi_lot'), 'varchar', 100, 30, 'commandedet', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_mmi_lot'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
 
 		// Permissions
 		$this->remove($options);

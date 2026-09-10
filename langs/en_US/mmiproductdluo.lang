@@ -58,3 +58,10 @@ MyWidgetDescription = My widget description
 AntigaspiToggleColTitle = Anti-waste
 AntigaspiAutoremoveActiveHelp = Auto stock removal active for this lot. Click to disable it (protect the lot).
 AntigaspiAutoremoveDisabledHelp = Auto stock removal disabled for this lot (protected). Click to re-enable it.
+
+# RM3040 — lot retenu par ligne de commande (caisse + synchro Presta, exploité au picking)
+Extrafield_mmi_lot = Lot / DDM
+ExtrafieldToolTip_mmi_lot = Lot retenu pour cette ligne. Renseigné automatiquement à la caisse quand le produit n'a qu'un seul lot en stock, choisi dans la liste sinon, ou repris de la commande PrestaShop. Le bon de livraison suit ce lot.
+MMILotPickerChoose = Choisir le lot
+MMILotPickerNoLot = Aucun lot en stock pour ce produit
+MMILotPickerAuto = Lot retenu automatiquement
