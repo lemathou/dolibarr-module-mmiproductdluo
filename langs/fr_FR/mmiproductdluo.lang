@@ -80,3 +80,10 @@ Extrafield_antigaspi_autoremove_disabled = Désactiver la suppression automatiqu
 AntigaspiToggleColTitle = Anti-gaspi
 AntigaspiAutoremoveActiveHelp = Sortie auto anti-gaspi active pour ce lot. Cliquer pour la désactiver (protéger le lot).
 AntigaspiAutoremoveDisabledHelp = Sortie auto anti-gaspi désactivée pour ce lot (lot protégé). Cliquer pour la réactiver.
+
+# RM3040 — lot retenu par ligne de commande (caisse + synchro Presta, exploité au picking)
+Extrafield_mmi_lot = Lot / DDM
+ExtrafieldToolTip_mmi_lot = Lot retenu pour cette ligne. Renseigné automatiquement à la caisse quand le produit n'a qu'un seul lot en stock, choisi dans la liste sinon, ou repris de la commande PrestaShop. Le bon de livraison suit ce lot.
+MMILotPickerChoose = Choisir le lot
+MMILotPickerNoLot = Aucun lot en stock pour ce produit
+MMILotPickerAuto = Lot retenu automatiquement

@@ -71,6 +71,12 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 			<?php
 			}
 		}
+		// RM3040 — écran de commande = CAISSE : charge le choix de lot (douchette).
+		// Le JS ne décide rien : il applique le mode rendu par ajax/lots_for_product.php
+		// (auto = un seul lot, retenu sans interaction ; choose = sélection au clavier).
+		elseif ($this->in_context($parameters, 'ordercard')) {
+			echo $this->lotPickerAssets();
+		}
 		// Onglet stock de la fiche produit => charge le JS qui injecte les boutons bascule anti-gaspi sur chaque ligne de lot
 		elseif ($this->in_context($parameters, 'stockproductcard')) {
 			if (!empty($object->id)) {
@@ -507,6 +513,29 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         }
 
         return 0;
+    }
+
+    /**
+     * RM3040 — assets du choix de lot à la caisse : l'URL de l'endpoint et les libellés
+     * traduits, puis le JS. Rien d'autre : la décision (aucun lot / un seul / plusieurs)
+     * appartient au serveur, pour qu'elle soit la même à la caisse, à la synchro et au picking.
+     */
+    protected function lotPickerAssets()
+    {
+        global $langs, $conf;
+
+        $langs->load('mmiproductdluo@mmiproductdluo');
+        $conf_js = array(
+            'url'   => dol_buildpath('/custom/mmiproductdluo/ajax/lots_for_product.php', 1),
+            'langs' => array(
+                'choose' => $langs->trans('MMILotPickerChoose'),
+                'nolot'  => $langs->trans('MMILotPickerNoLot'),
+                'auto'   => $langs->trans('MMILotPickerAuto'),
+            ),
+        );
+
+        return '<script>window.mmiLotPicker = '.json_encode($conf_js).';</script>'
+            .'<script src="'.dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 1).'"></script>';
     }
 
     /**
