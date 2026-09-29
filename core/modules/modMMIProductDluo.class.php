@@ -432,11 +432,40 @@ class modMMIProductDluo extends DolibarrModules
         $extrafields->addExtraField('kit_ddm_any', $langs->trans('Extrafield_kit_ddm_any'), 'boolean', 10, '', 'product', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_kit_ddm_any'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
 		// Lot
         $extrafields->addExtraField('antigaspi_autoremove_disabled', $langs->trans('Extrafield_antigaspi_autoremove_disabled'), 'boolean', 10, '', 'product_lot', 0, 0, '', "", 1, '', -1, "", '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
-		// RM3040 — lot retenu pour CETTE ligne de commande. Renseigné soit à la caisse
-		// (lecture code-barres : lot unique retenu d'office, sinon choisi), soit par la
-		// synchro PrestaShop depuis l'allocation figée. Exploité au picking : le BL suit ce
-		// lot au lieu de re-décider en FIFO.
-        $extrafields->addExtraField('mmi_lot', $langs->trans('Extrafield_mmi_lot'), 'varchar', 100, 30, 'commandedet', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_mmi_lot'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// RM3040 — la ligne de commande porte DEUX informations, et pas une seule.
+		//
+		//   · le PALIER est le CONTRAT : c'est la bande que le client a achetée, donc la remise
+		//     consentie. Toujours renseigné. Calculé à la date de SAISIE puis figé — un lot
+		//     franchit une borne avec le temps, et une commande ne doit pas changer de bande
+		//     toute seule entre la saisie et la livraison ;
+		//   · le LOT est le choix EXPLICITE, quand il y en a un : caisse (l'opérateur voit le
+		//     lot passer sous ses yeux) ou commande du catalogue pro. Le renseigner renseigne
+		//     le palier automatiquement, déduit de sa DDM.
+		//
+		// Un seul champ ne suffisait pas : le contrat n'est pas le même selon le canal de
+		// vente — une bande pour un particulier, un lot pour un pro (arbitrage 2026-09-29).
+        $extrafields->addExtraField('palier', $langs->trans('Extrafield_palier'), 'select', 99, '', 'commandedet', 0, 0, '', array('options' => array(
+            'normal'       => 'Date longue',
+            'date_courte'  => 'Date courte',
+            'antigaspi'    => 'Antigaspi',
+            'antigaspi_dm' => 'Antigaspi dernière minute',
+        )), 1, '', -1, $langs->trans('ExtrafieldToolTip_palier'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// `link` vers Productlot plutôt qu'un numéro de lot en texte : c'est la convention déjà
+		// suivie ici (fk_entrepot, fk_adresse), elle donne le lien cliquable vers la fiche lot,
+		// et elle supprime une classe de bug — le champ texte qu'on remplace était en
+		// varchar(30) alors qu'un numéro de lot Dolibarr fait 128 caractères.
+        $extrafields->addExtraField('fk_product_lot', $langs->trans('Extrafield_fk_product_lot'), 'link', 100, '', 'commandedet', 0, 0, '', array('options' => array(
+            'Productlot:product/stock/class/productlot.class.php' => null,
+        )), 1, '', -1, $langs->trans('ExtrafieldToolTip_fk_product_lot'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// `mmi_lot` était la première forme du champ (RM3040, 2026-09-15) : jamais partie en
+		// production, remplacée par les deux ci-dessus. On la retire pour ne pas laisser une
+		// colonne morte que quelqu'un croirait renseignée.
+        // `attributes` est un CACHE : sans ce chargement il est vide et la garde ne voyait
+        // jamais le champ à retirer — l'ancien restait en place à côté des nouveaux.
+        $extrafields->fetch_name_optionals_label('commandedet');
+        if (!empty($extrafields->attributes['commandedet']['type']['mmi_lot'])) {
+            $extrafields->delete('mmi_lot', 'commandedet');
+        }
 
 		// Permissions
 		$this->remove($options);

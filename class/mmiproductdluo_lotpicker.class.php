@@ -37,7 +37,7 @@ class MMIProductDluo_LotPicker
         if ($fk_product <= 0) {
             return array();
         }
-        $sql = 'SELECT pl.batch,'
+        $sql = 'SELECT pl.rowid AS fk_product_lot, pl.batch,'
             .' pl.sellby, pl.eatby,'
             .' SUM(pb.qty) AS qty,'
             .' DATEDIFF(pl.sellby, NOW()) AS days,'
@@ -64,6 +64,7 @@ class MMIProductDluo_LotPicker
         $out = array();
         while ($o = $this->db->fetch_object($res)) {
             $out[] = array(
+                'fk_product_lot' => (int) $o->fk_product_lot,
                 'batch'  => $o->batch,
                 'sellby' => $o->sellby,
                 'eatby'  => $o->eatby,
@@ -75,6 +76,139 @@ class MMIProductDluo_LotPicker
         $this->db->free($res);
 
         return $out;
+    }
+
+    /** Paliers, du plus frais au plus proche de la péremption. Mêmes clés que PrestaShop. */
+    const P_NORMAL    = 'normal';
+    const P_COURTE    = 'date_courte';
+    const P_ANTIGASPI = 'antigaspi';
+    const P_DM        = 'antigaspi_dm';
+
+    /** Modes de la valeur proposée par défaut (option de module). */
+    const DEF_COURTE_LONGUE = 'courte_longue';
+    const DEF_LONGUE        = 'longue';
+
+    /**
+     * Bornes en jours, lues dans la conf du module. Les mêmes valeurs qu'en boutique —
+     * c'est la condition pour que la même DDM donne le même palier des deux côtés.
+     */
+    public static function bornes()
+    {
+        global $conf;
+        $g = isset($conf->global) ? $conf->global : null;
+        $lire = function ($nom, $defaut) use ($g) {
+            return (int) (($g && isset($g->{$nom}) && $g->{$nom} !== '') ? $g->{$nom} : $defaut);
+        };
+
+        return array(
+            'promo'          => $lire('MMIPRODUCTDLUO_PROMO', 30),
+            'antigaspi'      => $lire('MMIPRODUCTDLUO_ANTIGASPI', 2),
+            'perime'         => $lire('MMIPRODUCTDLUO_PERIME', 59),
+            // RM3040 : absente du module jusqu'ici, alors que la boutique l'a (J_PERIME_ALLONGE).
+            // Sans elle, le palier « dernière minute » n'existerait pas côté ERP.
+            'perime_allonge' => $lire('MMIPRODUCTDLUO_PERIME_ALLONGE', 90),
+        );
+    }
+
+    /** Mode de la valeur proposée par défaut, lu dans la conf du module. */
+    public static function modeParDefaut()
+    {
+        global $conf;
+        $v = (isset($conf->global) && !empty($conf->global->MMIPRODUCTDLUO_LOT_DEFAULT_MODE))
+            ? $conf->global->MMIPRODUCTDLUO_LOT_DEFAULT_MODE : self::DEF_COURTE_LONGUE;
+
+        return $v === self::DEF_LONGUE ? self::DEF_LONGUE : self::DEF_COURTE_LONGUE;
+    }
+
+    /**
+     * PALIER d'un lot d'après son OFFSET en jours (DDM − jour de référence). PURE. RM3040.
+     *
+     * Règle identique à celle de la boutique (`PalierManager::palierPourOffset`) : c'est la
+     * même remise consentie au même client, elle ne peut pas se lire différemment selon le
+     * logiciel qui regarde.
+     *
+     * Le palier ainsi obtenu est calculé AU JOUR DE LA SAISIE puis figé sur la ligne : un lot
+     * franchit une borne avec le temps, et une commande ne doit pas changer de bande toute
+     * seule entre la saisie et la livraison (arbitrage Mathieu, 2026-09-29).
+     *
+     * @param int   $offsetDays          jours jusqu'à la DDM ; négatif = dépassée
+     * @param int   $autoremoveDisabled  1 = lot maintenu en vente au-delà de la péremption
+     * @param array $bornes              promo / antigaspi / perime / perime_allonge
+     * @return string|null palier, ou null si le lot n'est PAS VENDABLE
+     */
+    public static function palierPourOffset($offsetDays, $autoremoveDisabled, array $bornes)
+    {
+        $o = (int) $offsetDays;
+        if ($o > $bornes['promo']) {
+            return self::P_NORMAL;
+        }
+        if ($o > $bornes['antigaspi']) {
+            return self::P_COURTE;
+        }
+        if ($o >= -$bornes['perime']) {
+            return self::P_ANTIGASPI;
+        }
+        // Dernière minute : seulement si la suppression automatique a été désactivée sur le lot.
+        if ($o >= -$bornes['perime_allonge'] && (int) $autoremoveDisabled === 1) {
+            return self::P_DM;
+        }
+
+        return null;
+    }
+
+    /** Le palier d'un lot rendu par `lotsForProduct` (il porte déjà `days`). PURE. */
+    public static function palierDuLot($lot, array $bornes)
+    {
+        if (!isset($lot['days']) || $lot['days'] === null) {
+            return null;   // lot sans DDM : on ne devine pas une bande
+        }
+
+        return self::palierPourOffset($lot['days'], isset($lot['antigaspi_autoremove_disabled'])
+            ? $lot['antigaspi_autoremove_disabled'] : 0, $bornes);
+    }
+
+    /**
+     * Lot PROPOSÉ par défaut à la saisie d'une ligne. PURE. RM3040.
+     *
+     * La règle a deux temps, et le sens s'inverse entre les deux — c'est voulu, ce n'est pas
+     * une erreur (arbitrage Mathieu, 2026-09-29) :
+     *
+     *   1. de préférence dans « date longue » ou « date courte », la DDM la plus PROCHE : on
+     *      écoule au plus près de la péremption sans brader par inadvertance, les vraies
+     *      remises antigaspi restant un geste explicite ;
+     *   2. s'il n'y a plus rien dans ces bandes, la DDM la plus LOINTAINE parmi le reste :
+     *      contraint de puiser dans l'antigaspi, on sert le lot le MOINS dégradé plutôt que
+     *      d'enfoncer le pire.
+     *
+     * @param array  $lots    sortie de lotsForProduct (triée DDM la plus proche d'abord)
+     * @param array  $bornes
+     * @param string $mode    DEF_COURTE_LONGUE (défaut) ou DEF_LONGUE (premier temps restreint)
+     * @return array|null le lot proposé, ou null si aucun lot vendable
+     */
+    public static function choixParDefaut($lots, array $bornes, $mode = self::DEF_COURTE_LONGUE)
+    {
+        $lots = is_array($lots) ? array_values($lots) : array();
+        $preferes = ($mode === self::DEF_LONGUE)
+            ? array(self::P_NORMAL)
+            : array(self::P_NORMAL, self::P_COURTE);
+
+        $premier = null;   // 1er temps : DDM la plus proche dans les bandes préférées
+        $repli   = null;   // 2e temps  : DDM la plus LOINTAINE parmi le reste (vendable)
+        foreach ($lots as $lot) {
+            $palier = self::palierDuLot($lot, $bornes);
+            if ($palier === null) {
+                continue;  // non vendable : jamais proposé
+            }
+            if (in_array($palier, $preferes, true)) {
+                if ($premier === null || (int) $lot['days'] < (int) $premier['days']) {
+                    $premier = $lot;
+                }
+            } elseif ($repli === null || (int) $lot['days'] > (int) $repli['days']) {
+                $repli = $lot;
+            }
+        }
+
+        return $premier !== null ? $premier : $repli;
     }
 
     /**
@@ -124,9 +258,15 @@ class MMIProductDluo_LotPicker
         return $txt;
     }
 
-    /** Valeur stockée dans l'extrafield de ligne : le batch, seul (la DDM se relit du lot). */
+    /**
+     * Valeur stockée dans l'extrafield `fk_product_lot` de la ligne : l'IDENTIFIANT du lot.
+     *
+     * C'était le numéro de lot en texte dans la première version : une chaîne ne désigne un lot
+     * qu'associée au produit de la ligne, elle devient un texte orphelin à la moindre faute de
+     * frappe, et le champ était trop court (30 caractères pour des numéros qui en acceptent 128).
+     */
     public static function toFieldValue($lot)
     {
-        return isset($lot['batch']) ? (string) $lot['batch'] : '';
+        return isset($lot['fk_product_lot']) ? (int) $lot['fk_product_lot'] : 0;
     }
 }
