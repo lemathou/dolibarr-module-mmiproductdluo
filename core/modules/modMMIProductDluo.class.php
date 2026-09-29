@@ -464,7 +464,31 @@ class modMMIProductDluo extends DolibarrModules
         // jamais le champ à retirer — l'ancien restait en place à côté des nouveaux.
         $extrafields->fetch_name_optionals_label('commandedet');
         if (!empty($extrafields->attributes['commandedet']['type']['mmi_lot'])) {
-            $extrafields->delete('mmi_lot', 'commandedet');
+            // Ceinture de sécurité : cet `init()` tourne sur TOUTES les instances, y compris
+            // celles que nous ne voyons pas d'ici. `mmi_lot` n'a jamais quitté le poste de dev
+            // — vérifié par l'historique du module, par dpsync, par la boutique et par la base
+            // — mais supprimer un extrafield DÉTRUIT sa colonne et ce qu'elle contient. Si la
+            // colonne porte la moindre donnée quelque part, on ne touche à rien et on le DIT :
+            // une donnée perdue en silence ne se rattrape pas, un champ en trop se supprime à la
+            // main en trois secondes.
+            // `getRow` rend un OBJET, `false` si la requête échoue (colonne absente par
+            // exemple). On part du principe inverse du confort : tant qu'on n'a pas COMPTÉ
+            // zéro, on ne supprime pas.
+            $compte = $this->db->getRow(
+                'SELECT COUNT(*) AS n FROM '.MAIN_DB_PREFIX."commandedet_extrafields
+                 WHERE mmi_lot IS NOT NULL AND mmi_lot <> ''"
+            );
+            $porteDesDonnees = is_object($compte) ? (int) $compte->n : -1;
+            if ($porteDesDonnees !== 0) {
+                $this->error = 'extrafield `mmi_lot` CONSERVÉ : '
+                    .($porteDesDonnees < 0 ? 'impossible de compter ses valeurs'
+                        : $porteDesDonnees.' ligne(s) le renseignent')
+                    .'. Remplacé par `palier` + `fk_product_lot` (RM3040) ; à retirer à la main'
+                    .' après reprise de ces valeurs.';
+                dol_syslog(get_class($this).'::init '.$this->error, LOG_WARNING);
+            } else {
+                $extrafields->delete('mmi_lot', 'commandedet');
+            }
         }
 
 		// Permissions
