@@ -102,17 +102,30 @@ $picker = new MMIProductDluo_LotPicker($db);
 $lots = $picker->lotsForProduct($fk_product, $fk_entrepot);
 $decision = MMIProductDluo_LotPicker::decide($lots);
 
-// libellé prêt à afficher : l'opérateur lit une ligne, pas un objet
+// RM3040 — le PALIER accompagne chaque lot : c'est lui qui fait contrat sur la ligne, et il est
+// calculé ICI, donc au jour de la saisie. Le figer côté serveur évite qu'un navigateur laissé
+// ouvert toute la nuit ne propose une bande qui n'est plus la bonne.
+$bornes = MMIProductDluo_LotPicker::bornes();
 foreach ($decision['lots'] as $i => $l) {
+	// libellé prêt à afficher : l'opérateur lit une ligne, pas un objet
 	$decision['lots'][$i]['label'] = MMIProductDluo_LotPicker::label($l);
+	$decision['lots'][$i]['palier'] = MMIProductDluo_LotPicker::palierDuLot($l, $bornes);
 }
 if (!empty($decision['lot'])) {
 	$decision['lot']['label'] = MMIProductDluo_LotPicker::label($decision['lot']);
+	$decision['lot']['palier'] = MMIProductDluo_LotPicker::palierDuLot($decision['lot'], $bornes);
 }
+
+// Lot PROPOSÉ quand il y a un choix à faire : il est mis en tête, préselectionné, et reste
+// modifiable. Sans proposition, la caisse rendrait la main à l'opérateur pour une décision
+// qu'on sait prendre à sa place neuf fois sur dix.
+$defaut = MMIProductDluo_LotPicker::choixParDefaut($decision['lots'], $bornes,
+	MMIProductDluo_LotPicker::modeParDefaut());
 
 echo json_encode(array(
 	'success' => 1,
 	'mode'    => $decision['mode'],
 	'lot'     => $decision['lot'],
 	'lots'    => $decision['lots'],
+	'defaut'  => $defaut ? (int) MMIProductDluo_LotPicker::toFieldValue($defaut) : 0,
 ));

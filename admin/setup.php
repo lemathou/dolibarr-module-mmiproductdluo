@@ -28,8 +28,20 @@ require_once '../main_load.inc.php';
 
 $arrayofparameters = array(
 	'MMIPRODUCTDLUO_PERIME'=>array('type'=>'string', 'enabled'=>1, 'default'=>'59'),
-	'MMIPRODUCTDLUO_ANTIGASPI'=>array('type'=>'string', 'enabled'=>1), 'default'=>'2',
+	// Parenthèse mal placée (préexistant) : le 'default' tombait HORS du tableau du paramètre,
+	// ce qui privait ANTIGASPI de sa valeur par défaut ET ajoutait un faux paramètre nommé
+	// « default » à l'écran de configuration.
+	'MMIPRODUCTDLUO_ANTIGASPI'=>array('type'=>'string', 'enabled'=>1, 'default'=>'2'),
 	'MMIPRODUCTDLUO_PROMO'=>array('type'=>'string','enabled'=>1, 'default'=>'30'),
+	// RM3040 — bornes et remise du palier « antigaspi dernière minute », qui existaient en
+	// boutique (J_PERIME_ALLONGE, REMISE_DM) et manquaient ici : sans elles l'ERP ne connaît
+	// que trois paliers sur quatre, et la même DDM ne se lit pas pareil des deux côtés.
+	'MMIPRODUCTDLUO_PERIME_ALLONGE'=>array('type'=>'string','enabled'=>1, 'default'=>'90'),
+	'MMIPRODUCTDLUO_ORDER_PROMOPRICE_DM'=>array('type'=>'numeric','enabled'=>1, 'default'=>'70'),
+	// RM3040 — lot proposé par défaut à la saisie d'une ligne : « courte_longue » (la DDM la
+	// plus proche parmi date longue et date courte) ou « longue » (date longue seule). Dans les
+	// deux cas, s'il ne reste que de l'antigaspi, on sert le lot le MOINS dégradé.
+	'MMIPRODUCTDLUO_LOT_DEFAULT_MODE'=>array('type'=>'string','enabled'=>1, 'default'=>'courte_longue'),
 	'MMIPRODUCTDLUO_STOCK_COMPOSED_DDM_AUTO'=>array('type'=>'yesno','enabled'=>1),
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_FROM'=>array('type'=>'string','enabled'=>1),
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO'=>array('type'=>'string','enabled'=>1),

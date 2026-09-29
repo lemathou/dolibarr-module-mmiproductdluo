@@ -30,10 +30,10 @@ function check($label, $cond, $detail = '')
     }
 }
 
-$lotA = array('batch' => 'L-PROCHE', 'sellby' => '2026-09-20', 'eatby' => null, 'qty' => 4, 'days' => 10,
-              'antigaspi_autoremove_disabled' => 0);
-$lotB = array('batch' => 'L-LOIN', 'sellby' => '2026-12-31', 'eatby' => null, 'qty' => 12, 'days' => 112,
-              'antigaspi_autoremove_disabled' => 0);
+$lotA = array('fk_product_lot' => 11, 'batch' => 'L-PROCHE', 'sellby' => '2026-09-20', 'eatby' => null,
+              'qty' => 4, 'days' => 10, 'antigaspi_autoremove_disabled' => 0);
+$lotB = array('fk_product_lot' => 22, 'batch' => 'L-LOIN', 'sellby' => '2026-12-31', 'eatby' => null,
+              'qty' => 12, 'days' => 112, 'antigaspi_autoremove_disabled' => 0);
 
 // ── aucun lot : la caisse continue ───────────────────────────────────────────
 $d = MMIProductDluo_LotPicker::decide(array());
@@ -68,8 +68,10 @@ check('quantité entière affichée sans décimale',
     strpos(MMIProductDluo_LotPicker::label(array('batch' => 'X', 'sellby' => '', 'qty' => 3.0)), '3 en stock') !== false);
 
 // ── valeur stockée sur la ligne ──────────────────────────────────────────────
-check('la ligne porte le BATCH', MMIProductDluo_LotPicker::toFieldValue($lotA) === 'L-PROCHE');
-check('lot vide => chaîne vide, jamais null', MMIProductDluo_LotPicker::toFieldValue(array()) === '');
+// RM3040 (2026-09-29) : la ligne porte désormais l'IDENTIFIANT du lot, pas son numéro en texte —
+// une chaîne ne désigne un lot qu'associée au produit, et le champ était trop court de surcroît.
+check('la ligne porte l\'IDENTIFIANT du lot', MMIProductDluo_LotPicker::toFieldValue($lotA) === 11);
+check('lot vide => 0, jamais null', MMIProductDluo_LotPicker::toFieldValue(array()) === 0);
 
 echo "\n";
 if ($fails) {
