@@ -269,4 +269,85 @@ class MMIProductDluo_LotPicker
     {
         return isset($lot['fk_product_lot']) ? (int) $lot['fk_product_lot'] : 0;
     }
+
+    /**
+     * Rang d'une bande, du plus dégradé (0) au moins dégradé (3). PURE. RM3039.
+     *
+     * Sert à comparer deux bandes entre elles. Un palier inconnu ou absent rend `null` :
+     * l'appelant doit alors s'abstenir de contraindre quoi que ce soit plutôt que de deviner.
+     */
+    public static function rangPalier($palier)
+    {
+        $rangs = array(
+            self::P_DM        => 0,
+            self::P_ANTIGASPI => 1,
+            self::P_COURTE    => 2,
+            self::P_NORMAL    => 3,
+        );
+
+        return isset($rangs[$palier]) ? $rangs[$palier] : null;
+    }
+
+    /**
+     * Les lots qu'on s'autorise à servir pour un palier VENDU, dans l'ordre où les prendre. PURE.
+     *
+     * C'est la règle qui manquait au picking (RM3039). Dolibarr, laissé à lui-même, trie TOUS les
+     * lots du produit par DDM croissante et sert le plus proche : il donnait donc de la date
+     * courte à un client qui avait acheté — et payé — de la date longue, en silence.
+     *
+     * Deux principes, et ils ne sont pas symétriques (arbitrage Mathieu, 2026-10-05) :
+     *
+     *   1. **jamais moins bien que vendu** : aucun lot d'une bande plus dégradée que le palier de
+     *      la ligne. C'est l'invariant, il ne se négocie pas — c'est une tromperie sur la
+     *      marchandise, et le prix facturé ne correspondrait plus à ce qui est livré ;
+     *   2. **mieux est acceptable** : si la bande vendue ne suffit pas, on complète avec une bande
+     *      MOINS dégradée. On perd un peu de marge, on ne bloque pas l'expédition.
+     *
+     * L'ordre rendu fait le reste tout seul : à DDM croissante, les lots de la bande vendue
+     * viennent naturellement avant ceux des bandes plus lointaines, donc on n'entame une
+     * meilleure bande qu'une fois la bande vendue épuisée.
+     *
+     * Les lots NON VENDABLES (hors de toute bande : péremption dépassée sans le drapeau « dernière
+     * minute ») sont écartés dans tous les cas, palier ou pas.
+     *
+     * @param array       $lots    sortie de `lotsForProduct` (chaque lot porte `days`)
+     * @param string|null $palier  palier de la ligne de commande ; null/inconnu ⇒ aucune
+     *                             restriction de bande, on rend seulement les lots vendables
+     * @param array       $bornes  cf. `bornes()`
+     * @return array les lots autorisés, DDM la plus proche d'abord
+     */
+    public static function lotsPourPalier($lots, $palier, array $bornes)
+    {
+        $lots = is_array($lots) ? array_values($lots) : array();
+        $rangVendu = self::rangPalier($palier);
+
+        $retenus = array();
+        foreach ($lots as $lot) {
+            $bande = self::palierDuLot($lot, $bornes);
+            if ($bande === null) {
+                continue;   // lot non vendable, ou sans DDM : on ne le sert pas
+            }
+            if ($rangVendu !== null && self::rangPalier($bande) < $rangVendu) {
+                continue;   // plus dégradé que ce qui a été vendu
+            }
+            $retenus[] = $lot;
+        }
+
+        // DDM la plus proche d'abord. Les lots sans DDM ont déjà été écartés par palierDuLot().
+        usort($retenus, function ($a, $b) {
+            $da = isset($a['days']) ? (int) $a['days'] : 0;
+            $db = isset($b['days']) ? (int) $b['days'] : 0;
+            if ($da === $db) {
+                // À DDM égale, un ordre stable : le numéro de lot.
+                $ba = isset($a['batch']) ? (string) $a['batch'] : '';
+                $bb = isset($b['batch']) ? (string) $b['batch'] : '';
+
+                return strcmp($ba, $bb);
+            }
+
+            return ($da < $db) ? -1 : 1;
+        });
+
+        return $retenus;
+    }
 }
