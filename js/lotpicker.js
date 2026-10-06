@@ -80,6 +80,16 @@
 		}
 	}
 
+	/**
+	 * Rend le champ natif à l'opérateur. Appelé quand le serveur n'a pas répondu : sans lot à
+	 * proposer, lui laisser un champ illisible vaut mieux que pas de champ du tout.
+	 */
+	function rendreNatif() {
+		if (document.body) {
+			document.body.classList.remove("mmi-lotpicker-actif");
+		}
+	}
+
 
 
 	/**
@@ -243,9 +253,11 @@
 			try {
 				d = JSON.parse(req.responseText);
 			} catch (e) {
-				return;                          // réponse illisible : on ne bloque pas la caisse
+				rendreNatif();                   // réponse illisible : on rend le champ d'origine
+				return;
 			}
 			if (!d || !d.success) {
+				rendreNatif();
 				return;
 			}
 			if (d.mode === "auto") {
@@ -254,6 +266,7 @@
 				demander(d.lots);
 			} else {
 				message(L.nolot || "Aucun lot en stock pour ce produit", "muted");
+				escamoterNatif();
 			}
 		};
 		req.send();
@@ -264,6 +277,12 @@
 		if (!champ) {
 			return;                              // pas sur un écran de saisie de ligne
 		}
+		// On escamote DÈS MAINTENANT, pas après la réponse du serveur. Le champ natif est un
+		// select2 qui liste tous les lots de tous les produits : le laisser visible le temps
+		// d'un aller-retour, c'est le laisser visible tout court quand cet aller-retour ne se
+		// produit pas — ligne dont le produit n'est pas détectable, requête qui n'aboutit pas.
+		// `rendreNatif()` le rétablit si le serveur ne répond pas exploitablement.
+		escamoterNatif();
 		// Le produit change : par la douchette (le champ se remplit puis « change »), par la
 		// liste, ou par le select2 de Dolibarr — on écoute les trois de la même façon.
 		var prod = document.querySelector('#idprod, [name="idprod"]');
