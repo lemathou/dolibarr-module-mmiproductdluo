@@ -515,6 +515,101 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
      * appartient au serveur, pour qu'elle soit la même à la caisse, à la synchro et au picking.
      */
     /**
+     * Prix d'un produit selon la DDM de ses lots, à la saisie d'une ligne. RM3040.
+     *
+     * Cette règle vivait EN DUR dans `htdocs/product/ajax/products.php`, c'est-à-dire dans le
+     * cœur de Dolibarr. Elle y connaissait deux bandes sur quatre — « date courte » et
+     * « antigaspi » — et ignorait « antigaspi dernière minute » : un lot dépassé de 71 jours
+     * repartait donc à −25 % au lieu de −70 % (commande 18705, lot 9494). Les constantes de
+     * la bande manquante avaient bien été ajoutées, mais rien ne les lisait.
+     *
+     * Elle est ici parce que c'est du MÉTIER : les bornes, les bandes et leurs remises
+     * appartiennent au module, pas au cœur. Le cœur n'ouvre qu'un point d'extension.
+     *
+     * La bande est calculée par `MMIProductDluo_LotPicker` — la même règle que le picking à
+     * l'expédition (RM3039) et que le choix du lot à la caisse. Une troisième copie en dur
+     * aurait divergé des deux autres, comme celle-ci avait divergé de la boutique.
+     *
+     * Limite CONNUE, héritée du code d'origine et non traitée ici : le lot retenu est le
+     * premier par DDM, pas celui que l'opérateur a choisi sur la ligne. La remise peut donc
+     * correspondre à un autre lot que celui qui sera servi. Cela touche au comportement de la
+     * caisse et mérite son propre arbitrage.
+     *
+     * @param array  $parameters  'id' (produit), 'object' (Product chargé)
+     * @param object $object
+     * @param string $action
+     * @param object $hookmanager
+     * @return int 1 si le prix a été fourni, 0 sinon
+     */
+    public function productAjaxPrice(&$parameters, &$object, &$action, $hookmanager)
+    {
+        global $conf, $db;
+
+        if (empty($conf->global->MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE)) {
+            return 0;
+        }
+        $fk_product = isset($parameters['id']) ? (int) $parameters['id'] : 0;
+        $produit = isset($parameters['object']) ? $parameters['object'] : null;
+        if ($fk_product <= 0 || !is_object($produit)) {
+            return 0;
+        }
+
+        dol_include_once('/custom/mmiproductdluo/class/mmiproductdluo_lotpicker.class.php');
+        if (!class_exists('MMIProductDluo_LotPicker')) {
+            return 0;
+        }
+
+        $picker = new MMIProductDluo_LotPicker($db);
+        $lots = $picker->lotsForProduct($fk_product);
+        if (empty($lots)) {
+            return 0;
+        }
+        // `lotsForProduct` trie DDM la plus proche d'abord : on garde le comportement d'origine
+        // (le lot le plus ancien donne le prix), cf. la limite connue au docblock.
+        $lot = $lots[0];
+        $bornes = MMIProductDluo_LotPicker::bornes();
+        $bande = MMIProductDluo_LotPicker::palierDuLot($lot, $bornes);
+        if ($bande === null) {
+            return 0;   // lot non vendable : aucune remise, et surtout aucune vente
+        }
+
+        // Une remise par bande, chacune avec son défaut : les constantes de la bande
+        // « dernière minute » n'ont jamais été écrites en base sur l'instance de production.
+        // Sans défaut ici, la remise retomberait à 0 et le défaut serait silencieux.
+        $remises = array(
+            MMIProductDluo_LotPicker::P_NORMAL    => 0,
+            MMIProductDluo_LotPicker::P_COURTE    => (float) $this->confNum('MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO', 10),
+            MMIProductDluo_LotPicker::P_ANTIGASPI => (float) $this->confNum('MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI', 25),
+            MMIProductDluo_LotPicker::P_DM        => (float) $this->confNum('MMIPRODUCTDLUO_ORDER_PROMOPRICE_DM', 70),
+        );
+        if (!isset($remises[$bande]) || $remises[$bande] <= 0) {
+            return 0;   // bande sans remise (date longue) : le prix normal s'applique
+        }
+
+        $hookmanager->resArray = array(
+            'discount'         => $remises[$bande],
+            'price_ht'         => price($produit->price),
+            'price_ttc'        => price($produit->price_ttc),
+            'qty'              => isset($lot['qty']) ? $lot['qty'] : 0,
+            'price_base_type'  => $produit->price_base_type,
+            'tva_tx'           => $produit->tva_tx,
+            'default_vat_code' => $produit->default_vat_code,
+            'palier'           => $bande,
+        );
+
+        return 1;
+    }
+
+    /** Une constante numérique avec son défaut : absente ou vide, le défaut s'applique. */
+    protected function confNum($nom, $defaut)
+    {
+        global $conf;
+        $v = (isset($conf->global) && isset($conf->global->{$nom})) ? $conf->global->{$nom} : '';
+
+        return ($v === '' || $v === null) ? $defaut : $v;
+    }
+
+    /**
      * Charge le choix de lot sur l'écran de commande, qui sert de CAISSE. RM3040.
      *
      * Pourquoi ici et pas dans `addMoreActionsButtons` comme à l'origine : `commande/card.php`
