@@ -65,3 +65,9 @@ ExtrafieldToolTip_mmi_lot = Lot retenu pour cette ligne. Renseigné automatiquem
 MMILotPickerChoose = Choisir le lot
 MMILotPickerNoLot = Aucun lot en stock pour ce produit
 MMILotPickerAuto = Lot retenu automatiquement
+
+# RM3040 - lot and tier carried by the order line
+Extrafield_palier = Shelf-life tier
+ExtrafieldToolTip_palier = Shelf-life band sold on this line, with its discount. Frozen on the day of entry: a lot crosses a boundary over time, and an order must not change tier on its own between sale and delivery. The shipment will never serve a lot from a more degraded band than this one.
+Extrafield_fk_product_lot = Selected lot
+ExtrafieldToolTip_fk_product_lot = Exact lot selected for this line. Set automatically at the till when the product has a single lot in stock, picked from the list otherwise, or taken from the PrestaShop order. When set, the shipment serves THIS lot and no other; otherwise it serves the tier's band, nearest date first.

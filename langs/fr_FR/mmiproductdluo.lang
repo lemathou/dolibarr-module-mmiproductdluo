@@ -87,3 +87,9 @@ ExtrafieldToolTip_mmi_lot = Lot retenu pour cette ligne. Renseigné automatiquem
 MMILotPickerChoose = Choisir le lot
 MMILotPickerNoLot = Aucun lot en stock pour ce produit
 MMILotPickerAuto = Lot retenu automatiquement
+
+# RM3040 — le lot et le palier portés par la ligne de commande
+Extrafield_palier = Palier de DDM
+ExtrafieldToolTip_palier = Bande de date de durabilité vendue sur cette ligne, avec la remise qui va avec. Figée au jour de la saisie : un lot franchit une borne avec le temps, et une commande ne doit pas changer de palier toute seule entre la vente et la livraison. L'expédition ne servira jamais un lot d'une bande plus dégradée que celle-ci.
+Extrafield_fk_product_lot = Lot retenu
+ExtrafieldToolTip_fk_product_lot = Lot précis retenu pour cette ligne. Renseigné automatiquement à la caisse quand le produit n'a qu'un seul lot en stock, choisi dans la liste sinon, ou repris de la commande PrestaShop. S'il est renseigné, l'expédition sert CE lot et aucun autre ; sinon elle sert la bande du palier, la date la plus proche d'abord.
