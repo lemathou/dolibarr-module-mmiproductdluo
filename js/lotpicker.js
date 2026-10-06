@@ -15,14 +15,57 @@
 	var URL = CONF.url || "";
 	var L = CONF.langs || {};
 
+	/**
+	 * La zone d'extrafields de la ligne sur laquelle on travaille.
+	 *
+	 * Dolibarr rend DEUX conteneurs qui peuvent coexister à l'écran : celui de la ligne en
+	 * cours d'édition et celui du formulaire d'ajout en bas de page. Chercher `#options_…`
+	 * dans tout le document attraperait le premier des deux, donc parfois la mauvaise ligne.
+	 * L'édition est prioritaire : si elle est ouverte, c'est là que l'opérateur travaille.
+	 */
+	function zoneLigne() {
+		return document.getElementById("extrafield_lines_area_edit")
+			|| document.getElementById("extrafield_lines_area_create")
+			|| document;
+	}
+
+	function dansZone(selecteur) {
+		return zoneLigne().querySelector(selecteur);
+	}
+
 	/** Le champ « lot » de la ligne en cours de saisie (extrafield fk_product_lot). */
 	function champLot() {
-		return document.querySelector('#options_fk_product_lot, [name="options_fk_product_lot"]');
+		return dansZone('#options_fk_product_lot, [name="options_fk_product_lot"]');
 	}
 
 	/** Le champ « palier » de la même ligne : le CONTRAT, toujours renseigné. */
 	function champPalier() {
-		return document.querySelector('#options_palier, [name="options_palier"]');
+		return dansZone('#options_palier, [name="options_palier"]');
+	}
+
+	/**
+	 * Escamote le champ natif du lot, mais SEULEMENT quand on a de quoi le remplacer.
+	 *
+	 * L'extrafield est de type `link` : Dolibarr y déverse TOUS les lots de TOUS les produits,
+	 * identifiés par leur seul numéro, sans date de durabilité ni stock. Illisible dès qu'il y
+	 * a plus de quelques lots, et surtout faux : rien n'empêche d'y désigner le lot d'un autre
+	 * produit. On le garde dans le DOM — c'est lui qui porte la valeur soumise — mais on le
+	 * retire de la vue.
+	 *
+	 * Jamais avant d'avoir affiché l'alternative : si l'AJAX échoue ou si le produit n'est pas
+	 * déterminable, l'opérateur doit conserver le champ natif plutôt que plus rien du tout.
+	 */
+	function escamoterNatif() {
+		var champ = champLot();
+		if (!champ || champ.getAttribute("data-mmi-masque") === "1") {
+			return;
+		}
+		champ.setAttribute("data-mmi-masque", "1");
+		champ.style.display = "none";
+		// le select2 éventuellement greffé dessus par Dolibarr a son propre habillage
+		if (window.jQuery) {
+			try { window.jQuery(champ).next(".select2-container").hide(); } catch (e) { /* sans effet */ }
+		}
 	}
 
 	/**
@@ -45,10 +88,25 @@
 		}
 	}
 
-	/** Le produit choisi dans le formulaire d'ajout de ligne. */
+	/**
+	 * Le produit de la ligne sur laquelle on travaille.
+	 *
+	 * À la SAISIE d'une nouvelle ligne, c'est le sélecteur de produit (`#idprod`). À la
+	 * MODIFICATION d'une ligne existante, le produit n'est plus un choix : Dolibarr le passe
+	 * en champ caché `#product_id` (cf. core/tpl/objectline_edit.tpl.php). Sans ce second cas,
+	 * le picker restait muet en édition et laissait le champ natif, illisible, seul en scène.
+	 */
 	function produitCourant() {
-		var el = document.querySelector('#idprod, [name="idprod"], #idprodfournprice');
+		var el = dansZone('#product_id, [name="productid"]')
+			|| document.querySelector('#product_id, [name="productid"]')
+			|| document.querySelector('#idprod, [name="idprod"], #idprodfournprice');
 		return el && el.value ? parseInt(el.value, 10) : 0;
+	}
+
+	/** Le lot déjà enregistré sur la ligne, s'il y en a un (cas de la modification). */
+	function lotDejaPose() {
+		var champ = champLot();
+		return champ && champ.value ? parseInt(champ.value, 10) : 0;
 	}
 
 	function vider(node) {
@@ -89,6 +147,7 @@
 	function retenir(lot) {
 		poser(lot);
 		message((L.auto || "Lot retenu automatiquement") + " : " + (lot.label || lot.batch), "ok");
+		escamoterNatif();   // le message dit le lot : le select natif n'ajoute rien
 	}
 
 	/**
@@ -99,6 +158,12 @@
 		var z = zone();
 		if (!z) {
 			return;
+		}
+		// À la modification d'une ligne, le lot enregistré fait foi sur la proposition du
+		// serveur : on ne change pas sous les doigts de l'opérateur ce qu'il avait choisi.
+		var pose = lotDejaPose();
+		if (pose) {
+			defaut = pose;
 		}
 		vider(z);
 		var lab = document.createElement("label");
@@ -140,7 +205,13 @@
 		appliquer();                            // le champ porte déjà la proposition
 		lab.appendChild(sel);
 		z.appendChild(lab);
-		sel.focus();
+		escamoterNatif();                       // l'alternative est en place : on peut cacher le natif
+		// Le focus se prend à la SAISIE (douchette : l'opérateur enchaîne sans la souris). En
+		// MODIFICATION, le voler déplacerait la page sous le curseur de quelqu'un qui était
+		// venu corriger un prix ou une quantité.
+		if (!pose) {
+			sel.focus();
+		}
 	}
 
 	/** Interroge le serveur pour un produit et applique sa décision. */
@@ -192,7 +263,8 @@
 				});
 			}
 		}
-		// produit déjà sélectionné au chargement (retour d'erreur, édition) : on décide tout de suite
+		// produit déjà connu au chargement : saisie reprise après erreur, ou ligne en cours de
+		// MODIFICATION — dans ce dernier cas c'est le seul déclencheur, le produit n'y change pas.
 		if (produitCourant()) {
 			pourProduit(produitCourant());
 		}

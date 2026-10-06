@@ -106,14 +106,16 @@ $decision = MMIProductDluo_LotPicker::decide($lots);
 // calculé ICI, donc au jour de la saisie. Le figer côté serveur évite qu'un navigateur laissé
 // ouvert toute la nuit ne propose une bande qui n'est plus la bonne.
 $bornes = MMIProductDluo_LotPicker::bornes();
+// L'ordre compte : le libellé REPREND la bande, donc elle doit être posée avant lui.
 foreach ($decision['lots'] as $i => $l) {
+	$l['palier'] = MMIProductDluo_LotPicker::palierDuLot($l, $bornes);
+	$decision['lots'][$i]['palier'] = $l['palier'];
 	// libellé prêt à afficher : l'opérateur lit une ligne, pas un objet
 	$decision['lots'][$i]['label'] = MMIProductDluo_LotPicker::label($l);
-	$decision['lots'][$i]['palier'] = MMIProductDluo_LotPicker::palierDuLot($l, $bornes);
 }
 if (!empty($decision['lot'])) {
-	$decision['lot']['label'] = MMIProductDluo_LotPicker::label($decision['lot']);
 	$decision['lot']['palier'] = MMIProductDluo_LotPicker::palierDuLot($decision['lot'], $bornes);
+	$decision['lot']['label'] = MMIProductDluo_LotPicker::label($decision['lot']);
 }
 
 // Lot PROPOSÉ quand il y a un choix à faire : il est mis en tête, préselectionné, et reste
