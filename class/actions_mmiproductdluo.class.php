@@ -71,12 +71,6 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
 			<?php
 			}
 		}
-		// RM3040 — écran de commande = CAISSE : charge le choix de lot (douchette).
-		// Le JS ne décide rien : il applique le mode rendu par ajax/lots_for_product.php
-		// (auto = un seul lot, retenu sans interaction ; choose = sélection au clavier).
-		elseif ($this->in_context($parameters, 'ordercard')) {
-			echo $this->lotPickerAssets();
-		}
 		// Onglet stock de la fiche produit => charge le JS qui injecte les boutons bascule anti-gaspi sur chaque ligne de lot
 		elseif ($this->in_context($parameters, 'stockproductcard')) {
 			if (!empty($object->id)) {
@@ -520,6 +514,34 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
      * traduits, puis le JS. Rien d'autre : la décision (aucun lot / un seul / plusieurs)
      * appartient au serveur, pour qu'elle soit la même à la caisse, à la synchro et au picking.
      */
+    /**
+     * Charge le choix de lot sur l'écran de commande, qui sert de CAISSE. RM3040.
+     *
+     * Pourquoi ici et pas dans `addMoreActionsButtons` comme à l'origine : `commande/card.php`
+     * n'affiche la barre d'actions que `if ($action != 'presend' && $action != 'editline')`.
+     * Le hook n'était donc PAS appelé pendant l'édition d'une ligne — exactement le moment où
+     * le champ natif, qui liste tous les lots de tous les produits, est le plus gênant. Le JS
+     * n'était tout simplement pas chargé là.
+     *
+     * `printCommonFooter` s'exécute en fin de page quel que soit `$action`, et à un endroit où
+     * injecter un <script> est valide — au contraire de `printObjectLine`, qui tomberait au
+     * milieu d'un <table>.
+     *
+     * @param array  $parameters
+     * @param object $object
+     * @param string $action
+     * @param object $hookmanager
+     * @return int
+     */
+    public function printCommonFooter(&$parameters, &$object, &$action, $hookmanager)
+    {
+        if ($this->in_context($parameters, 'ordercard')) {
+            echo $this->lotPickerAssets();
+        }
+
+        return 0;
+    }
+
     protected function lotPickerAssets()
     {
         global $langs, $conf;
