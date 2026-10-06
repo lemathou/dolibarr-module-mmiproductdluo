@@ -92,14 +92,43 @@
 		parent.insertBefore(cache, champ);
 		parent.removeChild(champ);
 
-		// Filet : un habillage select2 que `destroy` n'aurait pas emporté (jQuery absent, ou
-		// select2 greffé après nous) resterait visible sans rien derrière.
-		var restes = parent.querySelectorAll(".select2-container, .select2");
-		for (var i = 0; i < restes.length; i++) {
-			if (restes[i].parentNode) {
-				restes[i].parentNode.removeChild(restes[i]);
+		nettoyerSelect2(parent, id);
+		// Second passage : select2 peut se greffer APRÈS nous (son init vit dans un
+		// $(document).ready enregistré ailleurs, et Dolibarr le rejoue sur certains écrans).
+		// Un habillage apparu après coup n'aurait plus de select derrière lui.
+		window.setTimeout(function () { nettoyerSelect2(parent, id); }, 400);
+	}
+
+	/**
+	 * Supprime l'habillage select2 orphelin autour d'un champ.
+	 *
+	 * Le rayon compte : en select2 v4 le <span class="select2 select2-container"> est inséré
+	 * en FRÈRE du <select>, mais Dolibarr propage les classes d'origine
+	 * (`containerCssClass: ':all:'`) et certains écrans l'enveloppent d'un niveau de plus. On
+	 * balaie donc la cellule ou le bloc qui porte le champ, pas seulement son parent direct.
+	 */
+	function nettoyerSelect2(parent, id) {
+		var portees = [];
+		if (parent) {
+			portees.push(parent);
+			if (parent.closest) {
+				var bloc = parent.closest("td, .tagtd, div");
+				if (bloc) { portees.push(bloc); }
 			}
 		}
+		var vus = [];
+		portees.forEach(function (p) {
+			var restes = p.querySelectorAll('.select2-container, span.select2, [data-select2-id], .select2-hidden-accessible');
+			for (var i = 0; i < restes.length; i++) {
+				var n = restes[i];
+				// ne jamais toucher à notre propre zone ni au champ caché qui porte la valeur
+				if (n.id === id || (n.closest && n.closest("#mmi-lotpicker"))) { continue; }
+				if (n.parentNode && vus.indexOf(n) === -1) {
+					vus.push(n);
+					n.parentNode.removeChild(n);
+				}
+			}
+		});
 	}
 
 

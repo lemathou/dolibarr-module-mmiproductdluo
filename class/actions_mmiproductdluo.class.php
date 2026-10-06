@@ -556,8 +556,16 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             ),
         );
 
+        // Empreinte du fichier dans l'URL : sans elle, un navigateur qui a déjà chargé une
+        // version du script la garde, et un correctif déployé reste invisible côté poste —
+        // on croit corriger sans effet, ce qui s'est produit (RM3040).
+        // dol_buildpath(..., 0) rend le chemin FICHIER (il tient compte du répertoire alternatif
+        // des modules), (..., 1) rend l'URL.
+        $v = @filemtime(dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 0));
+        $url = dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 1).($v ? '?v='.$v : '');
+
         return '<script>window.mmiLotPicker = '.json_encode($conf_js).';</script>'
-            .'<script src="'.dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 1).'"></script>';
+            .'<script src="'.$url.'"></script>';
     }
 
     /**
