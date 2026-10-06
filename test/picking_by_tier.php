@@ -19,7 +19,7 @@
  *     quelqu'un change ce tri, le gaspillage réapparaît sans message d'erreur.
  *
  *  Aucune base, aucun Dolibarr : les bornes et les lots sont injectés.
- *  Lancer : php7.4 htdocs/custom/mmiproductdluo/test/picking_par_palier.php
+ *  Lancer : php7.4 htdocs/custom/mmiproductdluo/test/picking_by_tier.php
  */
 if (PHP_SAPI !== 'cli') {
     exit;
@@ -64,12 +64,12 @@ $P = 'MMIProductDluo_LotPicker';
 
 // ---------------------------------------------------------------- rangs des bandes
 echo "\n== rangs des bandes ==\n";
-check('normal est la meilleure bande', $P::rangPalier($P::P_NORMAL), 3);
-check('date courte vient après', $P::rangPalier($P::P_COURTE), 2);
-check('antigaspi encore après', $P::rangPalier($P::P_ANTIGASPI), 1);
-check('dernière minute est la plus dégradée', $P::rangPalier($P::P_DM), 0);
-check('un palier inconnu ne se devine pas', $P::rangPalier('pas_un_palier'), null);
-check('un palier absent ne se devine pas', $P::rangPalier(null), null);
+check('normal est la meilleure bande', $P::tierRank($P::P_NORMAL), 3);
+check('date courte vient après', $P::tierRank($P::P_COURTE), 2);
+check('antigaspi encore après', $P::tierRank($P::P_ANTIGASPI), 1);
+check('dernière minute est la plus dégradée', $P::tierRank($P::P_DM), 0);
+check('un palier inconnu ne se devine pas', $P::tierRank('pas_un_palier'), null);
+check('un palier absent ne se devine pas', $P::tierRank(null), null);
 
 // ---------------------------------------------- 1. jamais une bande plus dégradée
 echo "\n== l'invariant : jamais moins bien que vendu ==\n";
@@ -78,46 +78,46 @@ $stock = array(lot('LONGUE', 43), lot('COURTE', 8), lot('GASPI', -10));
 
 check(
     'vendu en date longue : la date courte et l\'antigaspi sont EXCLUS',
-    batches($P::lotsPourPalier($stock, $P::P_NORMAL, $B)),
+    batches($P::lotsForTier($stock, $P::P_NORMAL, $B)),
     array('LONGUE')
 );
 check(
     'vendu en date courte : l\'antigaspi est exclu, la date longue reste permise',
-    batches($P::lotsPourPalier($stock, $P::P_COURTE, $B)),
+    batches($P::lotsForTier($stock, $P::P_COURTE, $B)),
     array('COURTE', 'LONGUE')
 );
 check(
     'vendu en antigaspi : tout ce qui est vendable est permis',
-    batches($P::lotsPourPalier($stock, $P::P_ANTIGASPI, $B)),
+    batches($P::lotsForTier($stock, $P::P_ANTIGASPI, $B)),
     array('GASPI', 'COURTE', 'LONGUE')
 );
 
 // -------------------------------------------- 2. le débordement est à sens unique
 echo "\n== l'asymétrie du débordement ==\n";
 // Bande vendue insuffisante : on complète vers le MOINS dégradé, jamais l'inverse.
-$peu = array(lot('COURTE-1', 5, 3), lot('LONGUE-1', 60, 50), lot('GASPI-1', -5, 50));
+$few = array(lot('COURTE-1', 5, 3), lot('LONGUE-1', 60, 50), lot('GASPI-1', -5, 50));
 check(
     'date courte en rupture : on complète par la date longue, pas par l\'antigaspi',
-    batches($P::lotsPourPalier($peu, $P::P_COURTE, $B)),
+    batches($P::lotsForTier($few, $P::P_COURTE, $B)),
     array('COURTE-1', 'LONGUE-1')
 );
 check(
     'date longue en rupture : rien ne complète, on ne descend JAMAIS d\'une bande',
-    batches($P::lotsPourPalier(array(lot('COURTE-1', 5, 99), lot('GASPI-1', -5, 99)), $P::P_NORMAL, $B)),
+    batches($P::lotsForTier(array(lot('COURTE-1', 5, 99), lot('GASPI-1', -5, 99)), $P::P_NORMAL, $B)),
     array()
 );
 
 // ------------------------------------------- 3. l'ordre évite de gâcher le stock
 echo "\n== l'ordre : la bande vendue d'abord, DDM la plus proche d'abord ==\n";
-$melange = array(lot('L-90', 90), lot('C-3', 3), lot('L-35', 35), lot('C-29', 29));
+$mixed = array(lot('L-90', 90), lot('C-3', 3), lot('L-35', 35), lot('C-29', 29));
 check(
     'vendu en date courte : les deux lots courts avant les deux longs, et chacun par DDM croissante',
-    batches($P::lotsPourPalier($melange, $P::P_COURTE, $B)),
+    batches($P::lotsForTier($mixed, $P::P_COURTE, $B)),
     array('C-3', 'C-29', 'L-35', 'L-90')
 );
 check(
     'à DDM égale, l\'ordre reste stable (numéro de lot)',
-    batches($P::lotsPourPalier(array(lot('B', 10), lot('A', 10)), $P::P_COURTE, $B)),
+    batches($P::lotsForTier(array(lot('B', 10), lot('A', 10)), $P::P_COURTE, $B)),
     array('A', 'B')
 );
 
@@ -125,17 +125,17 @@ check(
 echo "\n== lots non vendables ==\n";
 check(
     'un lot périmé au-delà de la borne est écarté même sans palier',
-    batches($P::lotsPourPalier(array(lot('MORT', -80), lot('COURTE', 8)), null, $B)),
+    batches($P::lotsForTier(array(lot('MORT', -80), lot('COURTE', 8)), null, $B)),
     array('COURTE')
 );
 check(
     'le même lot est vendable en « dernière minute » SI le drapeau est posé',
-    batches($P::lotsPourPalier(array(lot('DM', -80, 10, 1)), $P::P_DM, $B)),
+    batches($P::lotsForTier(array(lot('DM', -80, 10, 1)), $P::P_DM, $B)),
     array('DM')
 );
 check(
     'un lot sans DDM n\'est jamais servi (on ne devine pas sa bande)',
-    batches($P::lotsPourPalier(array(array('batch' => 'SANS', 'days' => null, 'qty' => 5)), null, $B)),
+    batches($P::lotsForTier(array(array('batch' => 'SANS', 'days' => null, 'qty' => 5)), null, $B)),
     array()
 );
 
@@ -143,19 +143,19 @@ check(
 echo "\n== ligne sans palier : aucune restriction de bande ==\n";
 check(
     'sans palier, tous les lots vendables sont rendus, DDM la plus proche d\'abord',
-    batches($P::lotsPourPalier($stock, null, $B)),
+    batches($P::lotsForTier($stock, null, $B)),
     array('GASPI', 'COURTE', 'LONGUE')
 );
 check(
     'un palier inconnu se comporte comme une absence, il ne bloque pas tout',
-    batches($P::lotsPourPalier($stock, 'inconnu', $B)),
+    batches($P::lotsForTier($stock, 'inconnu', $B)),
     array('GASPI', 'COURTE', 'LONGUE')
 );
 
 // -------------------------------------------------------------- cas dégénérés
 echo "\n== cas dégénérés ==\n";
-check('aucun lot en stock', batches($P::lotsPourPalier(array(), $P::P_NORMAL, $B)), array());
-check('entrée non tableau', batches($P::lotsPourPalier(null, $P::P_NORMAL, $B)), array());
+check('aucun lot en stock', batches($P::lotsForTier(array(), $P::P_NORMAL, $B)), array());
+check('entrée non tableau', batches($P::lotsForTier(null, $P::P_NORMAL, $B)), array());
 
 printf("\n%s\n", $fails === 0 ? "TOUS LES TESTS PASSENT" : "$fails TEST(S) EN ÉCHEC");
 exit($fails === 0 ? 0 : 1);
