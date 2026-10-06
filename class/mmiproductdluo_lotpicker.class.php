@@ -276,20 +276,23 @@ class MMIProductDluo_LotPicker
      * Sert à comparer deux bandes entre elles. Un palier inconnu ou absent rend `null` :
      * l'appelant doit alors s'abstenir de contraindre quoi que ce soit plutôt que de deviner.
      */
-    public static function rangPalier($palier)
+    public static function tierRank($tier)
     {
-        $rangs = array(
+        $ranks = array(
             self::P_DM        => 0,
             self::P_ANTIGASPI => 1,
             self::P_COURTE    => 2,
             self::P_NORMAL    => 3,
         );
 
-        return isset($rangs[$palier]) ? $rangs[$palier] : null;
+        return isset($ranks[$tier]) ? $ranks[$tier] : null;
     }
 
     /**
      * Les lots qu'on s'autorise à servir pour un palier VENDU, dans l'ordre où les prendre. PURE.
+     *
+     * Nommage en anglais (`tier` = palier) : la valeur stockée en base reste `palier`, le nom
+     * de la colonne et ses valeurs ne se renomment pas sans casser les données.
      *
      * C'est la règle qui manquait au picking (RM3039). Dolibarr, laissé à lui-même, trie TOUS les
      * lots du produit par DDM croissante et sert le plus proche : il donnait donc de la date
@@ -311,43 +314,43 @@ class MMIProductDluo_LotPicker
      * minute ») sont écartés dans tous les cas, palier ou pas.
      *
      * @param array       $lots    sortie de `lotsForProduct` (chaque lot porte `days`)
-     * @param string|null $palier  palier de la ligne de commande ; null/inconnu ⇒ aucune
+     * @param string|null $tier    palier de la ligne de commande ; null/inconnu ⇒ aucune
      *                             restriction de bande, on rend seulement les lots vendables
-     * @param array       $bornes  cf. `bornes()`
+     * @param array       $limits  cf. `bornes()`
      * @return array les lots autorisés, DDM la plus proche d'abord
      */
-    public static function lotsPourPalier($lots, $palier, array $bornes)
+    public static function lotsForTier($lots, $tier, array $limits)
     {
         $lots = is_array($lots) ? array_values($lots) : array();
-        $rangVendu = self::rangPalier($palier);
+        $soldRank = self::tierRank($tier);
 
-        $retenus = array();
+        $kept = array();
         foreach ($lots as $lot) {
-            $bande = self::palierDuLot($lot, $bornes);
-            if ($bande === null) {
+            $lotTier = self::palierDuLot($lot, $limits);
+            if ($lotTier === null) {
                 continue;   // lot non vendable, ou sans DDM : on ne le sert pas
             }
-            if ($rangVendu !== null && self::rangPalier($bande) < $rangVendu) {
+            if ($soldRank !== null && self::tierRank($lotTier) < $soldRank) {
                 continue;   // plus dégradé que ce qui a été vendu
             }
-            $retenus[] = $lot;
+            $kept[] = $lot;
         }
 
         // DDM la plus proche d'abord. Les lots sans DDM ont déjà été écartés par palierDuLot().
-        usort($retenus, function ($a, $b) {
-            $da = isset($a['days']) ? (int) $a['days'] : 0;
-            $db = isset($b['days']) ? (int) $b['days'] : 0;
-            if ($da === $db) {
+        usort($kept, function ($a, $b) {
+            $daysA = isset($a['days']) ? (int) $a['days'] : 0;
+            $daysB = isset($b['days']) ? (int) $b['days'] : 0;
+            if ($daysA === $daysB) {
                 // À DDM égale, un ordre stable : le numéro de lot.
-                $ba = isset($a['batch']) ? (string) $a['batch'] : '';
-                $bb = isset($b['batch']) ? (string) $b['batch'] : '';
+                $batchA = isset($a['batch']) ? (string) $a['batch'] : '';
+                $batchB = isset($b['batch']) ? (string) $b['batch'] : '';
 
-                return strcmp($ba, $bb);
+                return strcmp($batchA, $batchB);
             }
 
-            return ($da < $db) ? -1 : 1;
+            return ($daysA < $daysB) ? -1 : 1;
         });
 
-        return $retenus;
+        return $kept;
     }
 }
