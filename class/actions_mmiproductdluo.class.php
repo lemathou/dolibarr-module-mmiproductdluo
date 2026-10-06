@@ -564,7 +564,20 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         $v = @filemtime(dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 0));
         $url = dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 1).($v ? '?v='.$v : '');
 
-        return '<script>window.mmiLotPicker = '.json_encode($conf_js).';</script>'
+        // Masquer le champ natif par CSS plutôt qu'en manipulant le DOM : select2 se greffe
+        // quand il veut, et retirer son habillage après coup s'est révélé être une course.
+        // `.fieldline_options_<clé>` est le conteneur que Dolibarr donne à chaque extrafield de
+        // LIGNE (commonobject.class.php, showOptionals en mode `line`) : tout ce que select2
+        // fabrique à l'intérieur tombe avec, quel que soit le moment.
+        // La règle ne mord que si le picker a posé sa classe sur <body> — sans quoi un échec du
+        // JS laisserait l'opérateur sans aucun champ.
+        $css = 'body.mmi-lotpicker-actif .fieldline_options_fk_product_lot .select2,'
+            .'body.mmi-lotpicker-actif .fieldline_options_fk_product_lot .select2-container,'
+            .'body.mmi-lotpicker-actif .fieldline_options_fk_product_lot select#options_fk_product_lot'
+            .'{display:none !important;}';
+
+        return '<style>'.$css.'</style>'
+            .'<script>window.mmiLotPicker = '.json_encode($conf_js).';</script>'
             .'<script src="'.$url.'"></script>';
     }
 

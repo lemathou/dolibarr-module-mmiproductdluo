@@ -55,81 +55,31 @@
 	 * Jamais avant d'avoir affiché l'alternative : si l'AJAX échoue ou si le produit n'est pas
 	 * déterminable, l'opérateur doit conserver le champ natif plutôt que plus rien du tout.
 	 */
-	function escamoterNatif() {
-		var champ = champLot();
-		if (!champ || champ.getAttribute("data-mmi-remplace") === "1") {
-			return;
-		}
-		if (champ.tagName !== "SELECT") {
-			champ.setAttribute("data-mmi-remplace", "1");   // déjà un champ caché : rien à faire
-			return;
-		}
-
-		var nom = champ.name;
-		var id = champ.id;
-		var val = champ.value;
-		var parent = champ.parentNode;
-
-		// Dolibarr greffe select2 sur ce champ (`selectForFormsList` appelle `ajax_combobox`).
-		// C'est pour cela qu'un simple `display:none` sur le <select> ne changeait rien : select2
-		// l'avait DÉJÀ masqué et affichait son propre habillage, lequel restait en scène. On
-		// détruit donc l'habillage avant de retirer le select, sans quoi son conteneur reste
-		// orphelin à l'écran.
-		if (window.jQuery) {
-			try { window.jQuery(champ).select2("destroy"); } catch (e) { /* select2 absent : tant mieux */ }
-		}
-
-		// Un champ caché reprend le relais : c'est lui qui porte la valeur soumise, sous le même
-		// nom. Le <select> lui-même disparaît du DOM — il listait tous les lots de tous les
-		// produits, sans date ni bande, et rien n'empêchait d'y désigner le lot d'un autre
-		// produit.
-		var cache = document.createElement("input");
-		cache.type = "hidden";
-		cache.name = nom;
-		cache.id = id;
-		cache.value = val;
-		cache.setAttribute("data-mmi-remplace", "1");
-		parent.insertBefore(cache, champ);
-		parent.removeChild(champ);
-
-		nettoyerSelect2(parent, id);
-		// Second passage : select2 peut se greffer APRÈS nous (son init vit dans un
-		// $(document).ready enregistré ailleurs, et Dolibarr le rejoue sur certains écrans).
-		// Un habillage apparu après coup n'aurait plus de select derrière lui.
-		window.setTimeout(function () { nettoyerSelect2(parent, id); }, 400);
-	}
-
 	/**
-	 * Supprime l'habillage select2 orphelin autour d'un champ.
+	 * Escamote le champ natif — par une CLASSE sur <body>, pas en touchant au DOM du champ.
 	 *
-	 * Le rayon compte : en select2 v4 le <span class="select2 select2-container"> est inséré
-	 * en FRÈRE du <select>, mais Dolibarr propage les classes d'origine
-	 * (`containerCssClass: ':all:'`) et certains écrans l'enveloppent d'un niveau de plus. On
-	 * balaie donc la cellule ou le bloc qui porte le champ, pas seulement son parent direct.
+	 * Ce champ est un extrafield de type `link` : Dolibarr y greffe select2
+	 * (`selectForFormsList` appelle `ajax_combobox`). Deux tentatives précédentes ont échoué
+	 * pour la même raison de fond — elles couraient après l'habillage de select2 : un
+	 * `display:none` sur le <select> ne cachait rien, puisque select2 l'avait DÉJÀ masqué et
+	 * affichait son propre <span>; et retirer le <select> du DOM dépendait de l'ordre
+	 * d'initialisation de select2, qui n'est pas garanti.
+	 *
+	 * La feuille de style posée avec ce script cible le conteneur que Dolibarr donne à chaque
+	 * extrafield de ligne — `.fieldline_options_fk_product_lot`
+	 * (cf. commonobject.class.php, showOptionals en mode `line`) — et masque tout ce qu'il
+	 * contient de select2. Peu importe alors quand select2 se greffe, et ce qu'il fabrique.
+	 *
+	 * Conditionné à une classe sur <body> : tant que le picker n'a rien affiché, le champ natif
+	 * reste visible. S'il échoue, l'opérateur garde un champ — illisible, mais utilisable —
+	 * plutôt que plus rien du tout.
 	 */
-	function nettoyerSelect2(parent, id) {
-		var portees = [];
-		if (parent) {
-			portees.push(parent);
-			if (parent.closest) {
-				var bloc = parent.closest("td, .tagtd, div");
-				if (bloc) { portees.push(bloc); }
-			}
+	function escamoterNatif() {
+		if (document.body) {
+			document.body.classList.add("mmi-lotpicker-actif");
 		}
-		var vus = [];
-		portees.forEach(function (p) {
-			var restes = p.querySelectorAll('.select2-container, span.select2, [data-select2-id], .select2-hidden-accessible');
-			for (var i = 0; i < restes.length; i++) {
-				var n = restes[i];
-				// ne jamais toucher à notre propre zone ni au champ caché qui porte la valeur
-				if (n.id === id || (n.closest && n.closest("#mmi-lotpicker"))) { continue; }
-				if (n.parentNode && vus.indexOf(n) === -1) {
-					vus.push(n);
-					n.parentNode.removeChild(n);
-				}
-			}
-		});
 	}
+
 
 
 	/**
