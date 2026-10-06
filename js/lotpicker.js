@@ -14,6 +14,9 @@
 	var CONF = window.mmiLotPicker || {};
 	var URL = CONF.url || "";
 	var L = CONF.langs || {};
+	// Remises des bandes, renvoyées par le serveur : elles disent ce que NOUS avons posé, donc
+	// ce que nous avons le droit de remplacer.
+	var REMISES = [];
 
 	/**
 	 * La zone d'extrafields de la ligne sur laquelle on travaille.
@@ -107,11 +110,51 @@
 	 * qui est ce que le client achète. Le palier vient du SERVEUR, calculé au jour de la
 	 * saisie — le recalculer ici le ferait dépendre de l'horloge du poste.
 	 */
+	/** Le champ « remise » de la ligne en cours (ajout ou modification). */
+	function champRemise() {
+		return dansZone('#remise_percent, [name="remise_percent"]');
+	}
+
+	/**
+	 * Pose la remise de la bande du lot RETENU.
+	 *
+	 * C'est le prix qui doit suivre le lot, pas l'inverse. Le serveur, lui, ne peut pas le
+	 * savoir : il répond au moment où l'opérateur choisit le PRODUIT, avant tout choix de lot,
+	 * et proposait donc la remise du lot le plus ancien — qui n'est pas forcément celui qui
+	 * sera servi.
+	 *
+	 * Une remise saisie À LA MAIN n'est jamais écrasée : on ne remplace que la valeur vide ou
+	 * l'une des remises de bande, c'est-à-dire ce que nous avons posé nous-mêmes. Un geste
+	 * commercial de l'opérateur doit survivre à un changement de lot.
+	 */
+	function poserRemise(lot) {
+		var champ = champRemise();
+		if (!champ || lot.remise === undefined || lot.remise === null) {
+			return;
+		}
+		var actuel = String(champ.value).replace(",", ".").trim();
+		var nombre = actuel === "" ? null : parseFloat(actuel);
+		var nien = (nombre === null) || isNaN(nombre);
+		var posePrecedente = !nien && REMISES.some(function (r) { return Math.abs(r - nombre) < 0.001; });
+		if (!nien && !posePrecedente) {
+			return;                              // saisie manuelle : on n'y touche pas
+		}
+		var v = parseFloat(lot.remise);
+		champ.value = (isNaN(v) || v <= 0) ? "" : String(v);
+		// Dolibarr recalcule le total de la ligne sur ces événements
+		if (window.jQuery) {
+			try { window.jQuery(champ).trigger("change").trigger("keyup"); } catch (e) { /* sans effet */ }
+		} else {
+			champ.dispatchEvent(new Event("change", { bubbles: true }));
+		}
+	}
+
 	function poser(lot) {
 		var champ = champLot();
 		if (champ) {
 			champ.value = lot.fk_product_lot || "";
 		}
+		poserRemise(lot);
 		var pal = champPalier();
 		if (pal && lot.palier) {
 			pal.value = lot.palier;
@@ -269,6 +312,9 @@
 			if (!d || !d.success) {
 				rendreNatif();
 				return;
+			}
+			if (d.remises && d.remises.length) {
+				REMISES = d.remises.map(Number);
 			}
 			if (d.mode === "auto") {
 				retenir(d.lot);

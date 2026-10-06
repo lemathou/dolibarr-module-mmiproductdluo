@@ -110,11 +110,15 @@ $bornes = MMIProductDluo_LotPicker::bornes();
 foreach ($decision['lots'] as $i => $l) {
 	$l['palier'] = MMIProductDluo_LotPicker::palierDuLot($l, $bornes);
 	$decision['lots'][$i]['palier'] = $l['palier'];
+	// RM3040 — la REMISE voyage avec le lot : c'est la bande du lot CHOISI qui fait le prix,
+	// pas celle du lot le plus ancien du produit. Le JS la pose sur la ligne.
+	$decision['lots'][$i]['remise'] = MMIProductDluo_LotPicker::discountForTier($l['palier']);
 	// libellé prêt à afficher : l'opérateur lit une ligne, pas un objet
 	$decision['lots'][$i]['label'] = MMIProductDluo_LotPicker::label($l);
 }
 if (!empty($decision['lot'])) {
 	$decision['lot']['palier'] = MMIProductDluo_LotPicker::palierDuLot($decision['lot'], $bornes);
+	$decision['lot']['remise'] = MMIProductDluo_LotPicker::discountForTier($decision['lot']['palier']);
 	$decision['lot']['label'] = MMIProductDluo_LotPicker::label($decision['lot']);
 }
 
@@ -126,6 +130,9 @@ $defaut = MMIProductDluo_LotPicker::choixParDefaut($decision['lots'], $bornes,
 
 echo json_encode(array(
 	'success' => 1,
+	// Les remises de toutes les bandes : le JS ne remplace QUE l'une d'elles, pour ne pas
+	// écraser un pourcentage saisi à la main par l'opérateur.
+	'remises' => array_values(array_unique(array_map('floatval', MMIProductDluo_LotPicker::allDiscounts()))),
 	'mode'    => $decision['mode'],
 	'lot'     => $decision['lot'],
 	'lots'    => $decision['lots'],

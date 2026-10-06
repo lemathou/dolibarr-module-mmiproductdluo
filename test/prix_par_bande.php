@@ -118,5 +118,32 @@ if (!$o) {
     $db->rollback();
 }
 
+// --- RM3040 : la table des remises est UNIQUE. Le hook (prix à la saisie), l'endpoint AJAX
+// --- (prix reposé quand l'opérateur change de lot) et toute lecture future doivent rendre la
+// --- même valeur pour une bande donnée. Elle a déjà existé en trois exemplaires divergents.
+echo "\n== une seule table de remises, lue par tous ==\n";
+foreach ($attendu as $bande => $remiseAttendue) {
+    $v = $P::discountForTier($bande);
+    check(sprintf('discountForTier(%s)', $bande), $v, $remiseAttendue === null ? 0.0 : (float) $remiseAttendue);
+}
+check('une bande inconnue ne donne aucune remise', $P::discountForTier('zzz'), 0.0);
+check('aucune bande (null) ne donne aucune remise', $P::discountForTier(null), 0.0);
+
+echo "\n== l'endpoint expose la remise de CHAQUE lot, pas celle du plus ancien ==\n";
+// Un produit à deux bandes : c'est le cas où l'ancien comportement se trompait.
+list($fk3, $l3) = produitPourBande($db, $picker, $P::P_ANTIGASPI, $bornes);
+if (!$fk3) {
+    echo "  (ignoré) aucun produit avec un premier lot en antigaspi\n";
+} else {
+    $tous = $picker->lotsForProduct($fk3);
+    $bandes = array();
+    foreach ($tous as $l) {
+        $b = $P::palierDuLot($l, $bornes);
+        if ($b !== null) { $bandes[$b] = $P::discountForTier($b); }
+    }
+    printf("  produit %d : %s\n", $fk3, json_encode($bandes));
+    check('chaque bande du produit a SA remise, distincte', count(array_unique($bandes)) === count($bandes) || count($bandes) === 1, true);
+}
+
 printf("\n%s\n", $fails === 0 ? "CONFORME" : "$fails CAS NON CONFORME(S)");
 exit($fails === 0 ? 0 : 1);

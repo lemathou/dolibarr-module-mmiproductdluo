@@ -573,21 +573,15 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             return 0;   // lot non vendable : aucune remise, et surtout aucune vente
         }
 
-        // Une remise par bande, chacune avec son défaut : les constantes de la bande
-        // « dernière minute » n'ont jamais été écrites en base sur l'instance de production.
-        // Sans défaut ici, la remise retomberait à 0 et le défaut serait silencieux.
-        $remises = array(
-            MMIProductDluo_LotPicker::P_NORMAL    => 0,
-            MMIProductDluo_LotPicker::P_COURTE    => (float) $this->confNum('MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO', 10),
-            MMIProductDluo_LotPicker::P_ANTIGASPI => (float) $this->confNum('MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI', 25),
-            MMIProductDluo_LotPicker::P_DM        => (float) $this->confNum('MMIPRODUCTDLUO_ORDER_PROMOPRICE_DM', 70),
-        );
-        if (!isset($remises[$bande]) || $remises[$bande] <= 0) {
+        // La table des remises vit dans le lotpicker : le JS qui repose le prix quand
+        // l'opérateur change de lot lit la MÊME, via l'endpoint AJAX.
+        $remise = MMIProductDluo_LotPicker::discountForTier($bande);
+        if ($remise <= 0) {
             return 0;   // bande sans remise (date longue) : le prix normal s'applique
         }
 
         $hookmanager->resArray = array(
-            'discount'         => $remises[$bande],
+            'discount'         => $remise,
             'price_ht'         => price($produit->price),
             'price_ttc'        => price($produit->price_ttc),
             'qty'              => isset($lot['qty']) ? $lot['qty'] : 0,
@@ -598,15 +592,6 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         );
 
         return 1;
-    }
-
-    /** Une constante numérique avec son défaut : absente ou vide, le défaut s'applique. */
-    protected function confNum($nom, $defaut)
-    {
-        global $conf;
-        $v = (isset($conf->global) && isset($conf->global->{$nom})) ? $conf->global->{$nom} : '';
-
-        return ($v === '' || $v === null) ? $defaut : $v;
     }
 
     /**

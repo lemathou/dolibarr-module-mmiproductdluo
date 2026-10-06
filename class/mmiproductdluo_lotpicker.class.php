@@ -285,6 +285,51 @@ class MMIProductDluo_LotPicker
     }
 
     /**
+     * La remise (en %) consentie sur une bande. RM3040.
+     *
+     * Une seule table pour toute l'application : le prix proposé à la saisie, le prix reposé
+     * quand l'opérateur change de lot, et tout ce qui viendra. Elle a déjà existé en trois
+     * exemplaires — dans le cœur de Dolibarr, dans la boutique, et dans les constantes du
+     * module — et celle du cœur ignorait « dernière minute », ce qui a facturé des lots
+     * dépassés de 71 jours à −25 % au lieu de −70 %.
+     *
+     * Chaque bande porte son DÉFAUT : les constantes de la bande « dernière minute » peuvent
+     * ne pas être écrites en base (c'était le cas en production), et sans défaut la remise
+     * retomberait silencieusement à 0 — un plein tarif sur un produit à écouler.
+     *
+     * @param string|null $tier
+     * @return float remise en pourcentage ; 0 pour la bande normale, une bande inconnue ou nulle
+     */
+    public static function discountForTier($tier)
+    {
+        global $conf;
+        $lire = function ($nom, $defaut) use ($conf) {
+            $v = (isset($conf->global) && isset($conf->global->{$nom})) ? $conf->global->{$nom} : '';
+
+            return (float) (($v === '' || $v === null) ? $defaut : $v);
+        };
+        $table = array(
+            self::P_NORMAL    => 0.0,
+            self::P_COURTE    => $lire('MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO', 10),
+            self::P_ANTIGASPI => $lire('MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI', 25),
+            self::P_DM        => $lire('MMIPRODUCTDLUO_ORDER_PROMOPRICE_DM', 70),
+        );
+
+        return isset($table[$tier]) ? $table[$tier] : 0.0;
+    }
+
+    /** Les remises de toutes les bandes, pour comparer une valeur saisie à ce que nous posons. */
+    public static function allDiscounts()
+    {
+        $out = array();
+        foreach (array(self::P_NORMAL, self::P_COURTE, self::P_ANTIGASPI, self::P_DM) as $t) {
+            $out[$t] = self::discountForTier($t);
+        }
+
+        return $out;
+    }
+
+    /**
      * Rang d'une bande, du plus dégradé (0) au moins dégradé (3). PURE. RM3039.
      *
      * Sert à comparer deux bandes entre elles. Un palier inconnu ou absent rend `null` :
