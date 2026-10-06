@@ -29,8 +29,18 @@
 			|| document;
 	}
 
+	/**
+	 * Cherche d'abord dans la zone de la ligne, puis dans toute la page.
+	 *
+	 * Le repli n'est pas un luxe : restreindre à `#extrafield_lines_area_edit` suppose que le
+	 * champ s'y trouve, ce qui dépend de la composition de l'écran (nombre d'extrafields,
+	 * modules actifs, ligne en cours). Quand ce n'est pas le cas, `armer()` sortait sans rien
+	 * faire et le select2 restait seul en scène — sans aucun message, puisque tout le reste
+	 * (feuille de style, script) était bien là. C'est le symptôme observé en production alors
+	 * que l'env de dev, lui, plaçait le champ dans la zone.
+	 */
 	function dansZone(selecteur) {
-		return zoneLigne().querySelector(selecteur);
+		return zoneLigne().querySelector(selecteur) || document.querySelector(selecteur);
 	}
 
 	/** Le champ « lot » de la ligne en cours de saisie (extrafield fk_product_lot). */
