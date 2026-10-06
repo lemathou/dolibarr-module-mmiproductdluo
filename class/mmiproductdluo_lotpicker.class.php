@@ -254,6 +254,20 @@ class MMIProductDluo_LotPicker
         if (isset($lot['qty'])) {
             $txt .= ' — '.((float) $lot['qty'] == (int) $lot['qty'] ? (int) $lot['qty'] : $lot['qty']).' en stock';
         }
+        // La BANDE, quand l'appelant l'a déjà calculée : c'est elle que le client achète, et
+        // c'est ce qui manquait le plus à l'opérateur. Une DDM se lit, une bande se déduit —
+        // autant la lui dire plutôt que de lui faire comparer la date aux bornes de tête.
+        if (!empty($lot['palier'])) {
+            $bandes = array(
+                self::P_NORMAL    => 'Date longue',
+                self::P_COURTE    => 'Date courte',
+                self::P_ANTIGASPI => 'Antigaspi',
+                self::P_DM        => 'Antigaspi dernière minute',
+            );
+            if (isset($bandes[$lot['palier']])) {
+                $txt .= ' — '.$bandes[$lot['palier']];
+            }
+        }
 
         return $txt;
     }

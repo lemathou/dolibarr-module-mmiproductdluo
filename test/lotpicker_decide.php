@@ -67,6 +67,19 @@ check('lot sans DDM : dit « sans DDM » plutôt que d\'inventer une date',
 check('quantité entière affichée sans décimale',
     strpos(MMIProductDluo_LotPicker::label(array('batch' => 'X', 'sellby' => '', 'qty' => 3.0)), '3 en stock') !== false);
 
+// RM3040 (retour de recette) — le libellé doit porter la BANDE quand l'appelant l'a calculée.
+// C'est l'information qui manquait à l'écran : le champ natif de Dolibarr n'affiche que le
+// numéro de lot, sans date ni bande, et pour tous les produits à la fois.
+check('le libellé nomme la bande quand elle est connue',
+    strpos(MMIProductDluo_LotPicker::label(array(
+        'batch' => 'L1', 'sellby' => '2026-12-31', 'qty' => 5,
+        'palier' => MMIProductDluo_LotPicker::P_COURTE,
+    )), 'Date courte') !== false, true);
+check('sans bande fournie, le libellé reste inchangé (pas de mention parasite)',
+    strpos(MMIProductDluo_LotPicker::label(array('batch' => 'L2', 'sellby' => '2026-12-31', 'qty' => 5)), '— Date') === false, true);
+check('une bande inconnue n\'invente rien',
+    strpos(MMIProductDluo_LotPicker::label(array('batch' => 'L3', 'qty' => 1, 'palier' => 'zzz')), 'zzz') === false, true);
+
 // ── valeur stockée sur la ligne ──────────────────────────────────────────────
 // RM3040 (2026-09-29) : la ligne porte désormais l'IDENTIFIANT du lot, pas son numéro en texte —
 // une chaîne ne désigne un lot qu'associée au produit, et le champ était trop court de surcroît.
