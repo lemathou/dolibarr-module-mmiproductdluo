@@ -115,7 +115,11 @@ class modMMIProductDluo extends DolibarrModules
 			),
 			// Set here all hooks context managed by module. To find available hook context, make a "grep -r '>initHooks(' *" on source code. You can also set hook context to 'all'
 			'hooks' => array(
-				'ordercard',            // RM3040 : saisie de commande = CAISSE (douchette + choix du lot)
+				'ordercard',              // RM3040 : saisie de commande = CAISSE (douchette + choix du lot)
+				// RM3040 — prix d'une ligne selon la DDM du lot. La règle a quitté le cœur
+				// (product/ajax/products.php), où elle ne connaissait que deux bandes sur quatre,
+				// pour revenir ici, où elle a sa place et où elle partage celle du picking.
+				'productajax',
 				'receptioncard',
 				'expeditioncard',
 				'productcard',
