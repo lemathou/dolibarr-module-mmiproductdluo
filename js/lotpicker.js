@@ -57,16 +57,51 @@
 	 */
 	function escamoterNatif() {
 		var champ = champLot();
-		if (!champ || champ.getAttribute("data-mmi-masque") === "1") {
+		if (!champ || champ.getAttribute("data-mmi-remplace") === "1") {
 			return;
 		}
-		champ.setAttribute("data-mmi-masque", "1");
-		champ.style.display = "none";
-		// le select2 éventuellement greffé dessus par Dolibarr a son propre habillage
+		if (champ.tagName !== "SELECT") {
+			champ.setAttribute("data-mmi-remplace", "1");   // déjà un champ caché : rien à faire
+			return;
+		}
+
+		var nom = champ.name;
+		var id = champ.id;
+		var val = champ.value;
+		var parent = champ.parentNode;
+
+		// Dolibarr greffe select2 sur ce champ (`selectForFormsList` appelle `ajax_combobox`).
+		// C'est pour cela qu'un simple `display:none` sur le <select> ne changeait rien : select2
+		// l'avait DÉJÀ masqué et affichait son propre habillage, lequel restait en scène. On
+		// détruit donc l'habillage avant de retirer le select, sans quoi son conteneur reste
+		// orphelin à l'écran.
 		if (window.jQuery) {
-			try { window.jQuery(champ).next(".select2-container").hide(); } catch (e) { /* sans effet */ }
+			try { window.jQuery(champ).select2("destroy"); } catch (e) { /* select2 absent : tant mieux */ }
+		}
+
+		// Un champ caché reprend le relais : c'est lui qui porte la valeur soumise, sous le même
+		// nom. Le <select> lui-même disparaît du DOM — il listait tous les lots de tous les
+		// produits, sans date ni bande, et rien n'empêchait d'y désigner le lot d'un autre
+		// produit.
+		var cache = document.createElement("input");
+		cache.type = "hidden";
+		cache.name = nom;
+		cache.id = id;
+		cache.value = val;
+		cache.setAttribute("data-mmi-remplace", "1");
+		parent.insertBefore(cache, champ);
+		parent.removeChild(champ);
+
+		// Filet : un habillage select2 que `destroy` n'aurait pas emporté (jQuery absent, ou
+		// select2 greffé après nous) resterait visible sans rien derrière.
+		var restes = parent.querySelectorAll(".select2-container, .select2");
+		for (var i = 0; i < restes.length; i++) {
+			if (restes[i].parentNode) {
+				restes[i].parentNode.removeChild(restes[i]);
+			}
 		}
 	}
+
 
 	/**
 	 * Pose le lot ET son palier. Les deux vont ensemble : choisir un lot renseigne la bande,
