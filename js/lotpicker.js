@@ -149,7 +149,14 @@
 		}
 	}
 
+	/**
+	 * Le lot actuellement retenu sur la ligne. Mémorisé parce que la remise doit pouvoir être
+	 * REPOSÉE plus tard, quand le cœur a fini son propre aller-retour (cf. `suivreAjaxCoeur`).
+	 */
+	var lotCourant = null;
+
 	function poser(lot) {
+		lotCourant = lot;
 		var champ = champLot();
 		if (champ) {
 			champ.value = lot.fk_product_lot || "";
@@ -328,6 +335,36 @@
 		req.send();
 	}
 
+	/**
+	 * Repose la remise du lot retenu dès que le cœur a répondu.
+	 *
+	 * `objectline_create.tpl.php` réécrit `#remise_percent` à la fin de SON aller-retour
+	 * (bloc « MMI Discount ») avec la remise que le hook calcule pour le lot le PLUS ANCIEN du
+	 * produit — pas pour celui qui sera servi. Or les deux requêtes partent du même événement :
+	 * laquelle répond la dernière n'est pas déterminable, et c'est la dernière qui fait le prix.
+	 *
+	 * Symptôme observé en caisse : un lot en dernière minute bien présélectionné, mais la remise
+	 * restée à 0 — il fallait recliquer le lot pour la faire apparaître. Et le travers inverse
+	 * est pire : une ligne qui part à −70 % alors que l'opérateur a choisi un lot sain.
+	 *
+	 * On ne force donc aucun clic et on n'attend aucun délai : on se branche sur la fin de la
+	 * requête du cœur, qui est le seul moment où l'on sait qu'il n'écrira plus.
+	 */
+	function suivreAjaxCoeur() {
+		if (!window.jQuery) {
+			return;                              // sans jQuery, le cœur ne fait pas cet appel non plus
+		}
+		window.jQuery(document).ajaxComplete(function (e, xhr, settings) {
+			var url = (settings && settings.url) ? String(settings.url) : "";
+			if (url.indexOf("product/ajax/products.php") === -1) {
+				return;                          // ce n'est pas la requête du cœur
+			}
+			if (lotCourant) {
+				poserRemise(lotCourant);
+			}
+		});
+	}
+
 	function armer() {
 		var champ = champLot();
 		if (!champ) {
@@ -339,6 +376,7 @@
 		// produit pas — ligne dont le produit n'est pas détectable, requête qui n'aboutit pas.
 		// `rendreNatif()` le rétablit si le serveur ne répond pas exploitablement.
 		escamoterNatif();
+		suivreAjaxCoeur();                       // le cœur écrit aussi la remise : on repasse après lui
 		// Le produit change : par la douchette (le champ se remplit puis « change »), par la
 		// liste, ou par le select2 de Dolibarr — on écoute les trois de la même façon.
 		var prod = document.querySelector('#idprod, [name="idprod"]');
