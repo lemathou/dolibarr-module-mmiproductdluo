@@ -580,7 +580,13 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             return 0;   // bande sans remise (date longue) : le prix normal s'applique
         }
 
-        $hookmanager->resArray = array(
+        // Le résultat se dépose dans `$this->results`, JAMAIS dans `$hookmanager->resArray` :
+        // `executeHooks()` vide `resArray` à l'entrée, puis le REMPLACE à la sortie par la fusion
+        // des `->results` de chaque module (cf. hookmanager.class.php, l. 212 et 325). Écrire
+        // directement dans `resArray` revient donc à écrire dans une variable que le cœur jette
+        // juste après : le hook renvoyait bien 1, mais le cœur voyait un tableau vide et gardait
+        // sa remise à 0. C'est la convention déjà documentée par MMI_Actions_1_0::$results.
+        $this->results = array(
             'discount'         => $remise,
             'price_ht'         => price($produit->price),
             'price_ttc'        => price($produit->price_ttc),

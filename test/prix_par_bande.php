@@ -46,6 +46,45 @@ printf("remises attendues : %s\n\n", json_encode($attendu));
 $picker = new MMIProductDluo_LotPicker($db);
 $actions = new ActionsMMIProductDluo($db);
 
+// --- RM3040 (suite) : on interroge le hook COMME LE FAIT LE CŒUR, par `executeHooks()`.
+// ---
+// --- Ce test appelait auparavant `$actions->productAjaxPrice(...)` en direct, puis lisait
+// --- `$hm->resArray`. Il passait au vert alors que la remise n'arrivait JAMAIS au navigateur :
+// --- `executeHooks()` vide `resArray` à l'entrée et le remplace à la sortie par la fusion des
+// --- `->results` des modules. Le hook, qui écrivait dans `$hookmanager->resArray`, écrivait
+// --- donc dans une variable jetée aussitôt. Tester la méthode n'est pas tester le hook : seul
+// --- le passage par `executeHooks()` vérifie le contrat.
+function remiseViaHook($db, $fk_product, $produit)
+{
+    $hm = new HookManager($db);
+    $hm->initHooks(array('productajax'));
+    $parameters = array('id' => $fk_product, 'object' => $produit, 'price_level' => 1);
+    $action = 'fetch';
+    $reshook = $hm->executeHooks('productAjaxPrice', $parameters, $produit, $action);
+    // La condition est celle du cœur, à l'identique (product/ajax/products.php)
+    if ($reshook > 0 && !empty($hm->resArray) && is_array($hm->resArray) && isset($hm->resArray['discount'])) {
+        return (float) $hm->resArray['discount'];
+    }
+    return null;
+}
+
+// Le contexte de hook vit EN BASE (`MAIN_MODULE_<MOD>_HOOKS`, écrite à l'activation du module) :
+// absent, le cœur n'appellera jamais le hook, quel que soit le code livré. On le vérifie, puis on
+// l'injecte en mémoire pour que la suite du test porte sur la mécanique et non sur l'env.
+$enregistre = isset($conf->modules_parts['hooks']['mmiproductdluo'])
+    && in_array('productajax', (array) $conf->modules_parts['hooks']['mmiproductdluo']);
+check('le contexte « productajax » est enregistre en base pour ce module', $enregistre, true);
+if (!$enregistre) {
+    echo "  (le contexte est injecte en memoire pour la suite ; en prod il faut rejouer init())\n";
+    if (!isset($conf->modules_parts['hooks']) || !is_array($conf->modules_parts['hooks'])) {
+        $conf->modules_parts['hooks'] = array();
+    }
+    if (!isset($conf->modules_parts['hooks']['mmiproductdluo'])) {
+        $conf->modules_parts['hooks']['mmiproductdluo'] = array();
+    }
+    $conf->modules_parts['hooks']['mmiproductdluo'][] = 'productajax';
+}
+
 /** Cherche un produit dont le PREMIER lot (DDM la plus proche) tombe dans la bande voulue. */
 function produitPourBande($db, $picker, $bande, $bornes)
 {
@@ -73,11 +112,7 @@ foreach ($attendu as $bande => $remiseAttendue) {
     }
     $produit = new Product($db);
     $produit->fetch($fk_product);
-    $hm = new HookManager($db);
-    $params = array('id' => $fk_product, 'object' => $produit, 'price_level' => 0);
-    $action = '';
-    $r = $actions->productAjaxPrice($params, $produit, $action, $hm);
-    $remise = ($r > 0 && isset($hm->resArray['discount'])) ? (float) $hm->resArray['discount'] : null;
+    $remise = remiseViaHook($db, $fk_product, $produit);
     check(sprintf('bande %-14s (produit %d, lot %s, %s j)', $bande, $fk_product, $lot['batch'], $lot['days']),
         $remise, $remiseAttendue);
 }
@@ -107,11 +142,7 @@ if (!$o) {
     check(sprintf('le lot %s (%s j) est classé en dernière minute', $o->batch, $o->days), $bande2, $P::P_DM);
 
     $produit2 = new Product($db); $produit2->fetch((int) $o->fk_product);
-    $hm2 = new HookManager($db);
-    $params2 = array('id' => (int) $o->fk_product, 'object' => $produit2, 'price_level' => 0);
-    $action2 = '';
-    $r2 = $actions->productAjaxPrice($params2, $produit2, $action2, $hm2);
-    $remise2 = ($r2 > 0 && isset($hm2->resArray['discount'])) ? (float) $hm2->resArray['discount'] : null;
+    $remise2 = remiseViaHook($db, (int) $o->fk_product, $produit2);
     check('... et reçoit la remise « dernière minute », pas celle d\'antigaspi', $remise2, $attendu[$P::P_DM]);
     check('... ce qui n\'est PAS la remise antigaspi (le défaut d\'origine)', $remise2 === $attendu[$P::P_ANTIGASPI], false);
 
