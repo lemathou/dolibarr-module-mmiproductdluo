@@ -128,8 +128,20 @@ if (!empty($decision['lot'])) {
 $defaut = MMIProductDluo_LotPicker::choixParDefaut($decision['lots'], $bornes,
 	MMIProductDluo_LotPicker::modeParDefaut());
 
+// RM3492 — le mode caisse doit distinguer deux absences de lot qui n'ont rien à voir : un
+// produit NON géré en lot, qu'il faut pouvoir scanner et valider comme n'importe quel article,
+// et un produit géré en lot dont aucun lot n'est vendable — là, rien ne doit être validé tout
+// seul. Seul `tobatch` permet de trancher.
+$tobatch = 0;
+$resb = $db->query('SELECT tobatch FROM '.MAIN_DB_PREFIX.'product WHERE rowid = '.((int) $fk_product));
+if ($resb) {
+	$ob = $db->fetch_object($resb);
+	$tobatch = $ob ? (int) $ob->tobatch : 0;
+}
+
 echo json_encode(array(
 	'success' => 1,
+	'tobatch' => $tobatch,
 	// Les remises de toutes les bandes : le JS ne remplace QUE l'une d'elles, pour ne pas
 	// écraser un pourcentage saisi à la main par l'opérateur.
 	'remises' => array_values(array_unique(array_map('floatval', MMIProductDluo_LotPicker::allDiscounts()))),
