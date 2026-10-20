@@ -41,6 +41,10 @@ $arrayofparameters = array(
 	// RM3040 — lot proposé par défaut à la saisie d'une ligne : « courte_longue » (la DDM la
 	// plus proche parmi date longue et date courte) ou « longue » (date longue seule). Dans les
 	// deux cas, s'il ne reste que de l'antigaspi, on sert le lot le MOINS dégradé.
+	// RM3492 — mode caisse : identifiant du GROUPE d'utilisateurs pour lequel la ligne se
+	// valide seule au scan et dont un clic sur un lot valide la ligne. Vide ⇒ inactif.
+	// Un groupe et non un droit : un droit est accorde d'office a tout administrateur.
+	'MMIPRODUCTDLUO_CAISSE_GROUP'=>array('type'=>'numeric','enabled'=>1),
 	'MMIPRODUCTDLUO_LOT_DEFAULT_MODE'=>array('type'=>'string','enabled'=>1, 'default'=>'courte_longue'),
 	'MMIPRODUCTDLUO_STOCK_COMPOSED_DDM_AUTO'=>array('type'=>'yesno','enabled'=>1),
 	'MMIPRODUCTDLUO_ANTIGASPI_EMAIL_FROM'=>array('type'=>'string','enabled'=>1),

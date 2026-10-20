@@ -27,6 +27,7 @@ require_once $racine.'/master.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/user/class/user.class.php';
 dol_include_once('/custom/mmiproductdluo/class/actions_mmiproductdluo.class.php');
 dol_include_once('/custom/mmiproductdluo/core/modules/modMMIProductDluo.class.php');
+dol_include_once('/custom/mmiproductdluo/core/modules/modMMIProductDluo.class.php');
 
 $fails = 0;
 function check($label, $got, $want)
@@ -37,51 +38,61 @@ function check($label, $got, $want)
     printf("%s %-64s got=%s want=%s\n", $ok ? '  ok  ' : 'FAIL  ', $label, var_export($got, true), var_export($want, true));
 }
 
-// --- Le droit est-il déclaré, et sous un identifiant qui n'empiète sur personne ?
-echo "== le droit « mode caisse » est déclaré ==\n";
+// --- Le ciblage se fait par GROUPE, et surtout PAS par un droit
+echo "== le ciblage passe par un groupe, pas par un droit ==\n";
 $mod = new modMMIProductDluo($db);
-$trouve = null;
+$aDroitCaisse = false;
 foreach ((array) $mod->rights as $d) {
-    if (isset($d[4]) && $d[4] === 'caisse') { $trouve = $d; }
+    if (isset($d[4]) && $d[4] === 'caisse') { $aDroitCaisse = true; }
 }
-check('un droit de famille « caisse » existe', is_array($trouve), true);
-if (is_array($trouve)) {
-    check('... avec le sous-droit « use »', isset($trouve[5]) ? $trouve[5] : null, 'use');
-    check('... et un libellé traduit (pas la clé brute)',
-        $langs->trans($trouve[1]) !== $trouve[1], true);
-    // Un id déjà pris par un autre module donnerait un droit fantôme, coché pour autre chose.
-    $id = (int) $trouve[0];
-    $r = $db->query("SELECT module FROM ".MAIN_DB_PREFIX."rights_def WHERE id = ".$id." AND module <> 'mmiproductdluo'");
-    $squatte = ($r && $db->num_rows($r) > 0);
-    check('... et un id que personne d\'autre n\'utilise ('.$id.')', $squatte, false);
-}
+// Un droit serait accordé d'office à tout administrateur (getrights() force les permissions des
+// admins, et insert_permissions() les ajoute à chaque compte admin) : il ne peut donc pas servir
+// à désigner des personnes. Ce test garde la porte fermée.
+check('le module ne declare AUCUN droit « caisse »', $aDroitCaisse, false);
+check('l\'option de groupe est declaree dans setup.php',
+    strpos(file_get_contents(dol_buildpath('/custom/mmiproductdluo/admin/setup.php', 0)), 'MMIPRODUCTDLUO_CAISSE_GROUP') !== false, true);
 
-// --- `autovalide` suit le droit, et rien d'autre
-echo "\n== autovalide suit le droit, et uniquement lui ==\n";
+// --- `autovalide` suit l'appartenance au groupe, et rien d'autre
+echo "\n== autovalide suit l'appartenance au groupe ==\n";
 $actions = new ActionsMMIProductDluo($db);
 $ref = new ReflectionMethod($actions, 'lotPickerAssets');
 $ref->setAccessible(true);
 
-function assetsPour($ref, $actions, $avecDroit)
-{
-    global $db;
-    $u = new User($db);
-    $u->rights = new stdClass();
-    $u->rights->mmiproductdluo = new stdClass();
-    $u->rights->mmiproductdluo->caisse = new stdClass();
-    $u->rights->mmiproductdluo->caisse->use = $avecDroit ? 1 : 0;
-    $GLOBALS['user'] = $u;
-    return $ref->invoke($actions);
-}
+/** Fabrique un groupe et des membres le temps d'une transaction ANNULEE : aucune trace. */
+$db->begin();
+$db->query("INSERT INTO ".MAIN_DB_PREFIX."usergroup (nom, entity, datec) VALUES ('ZZ_test_caisse_rm3492', ".((int) $conf->entity).", '".$db->idate(dol_now())."')");
+$gid = (int) $db->last_insert_id(MAIN_DB_PREFIX.'usergroup');
+$conf->global->MMIPRODUCTDLUO_CAISSE_GROUP = $gid;
 
-$sansDroit = assetsPour($ref, $actions, false);
-$avecDroit = assetsPour($ref, $actions, true);
-check('sans le droit : autovalide = 0', strpos($sansDroit, '"autovalide":0') !== false, true);
-check('avec le droit : autovalide = 1', strpos($avecDroit, '"autovalide":1') !== false, true);
-// Contre-épreuve : si la clé disparaissait du JSON, les deux tests ci-dessus passeraient au vert
-// sur une absence. On vérifie donc qu'elle est bien présente dans les deux cas.
-check('la clé est présente sans le droit', strpos($sansDroit, 'autovalide') !== false, true);
-check('la clé est présente avec le droit', strpos($avecDroit, 'autovalide') !== false, true);
+// un NON-admin dans le groupe, un ADMIN hors du groupe : c'est tout l'enjeu
+$r = $db->query("SELECT rowid, login FROM ".MAIN_DB_PREFIX."user WHERE admin = 0 AND statut = 1 LIMIT 1");
+$membre = $db->fetch_object($r);
+$r = $db->query("SELECT rowid, login FROM ".MAIN_DB_PREFIX."user WHERE admin = 1 LIMIT 1");
+$adminHorsGroupe = $db->fetch_object($r);
+
+if (!$membre || !$adminHorsGroupe) {
+    echo "  (ignoré) il faut au moins un compte non-admin actif et un admin en base\n";
+} else {
+    $db->query("INSERT INTO ".MAIN_DB_PREFIX."usergroup_user (fk_user, fk_usergroup, entity) VALUES (".((int) $membre->rowid).", ".$gid.", ".((int) $conf->entity).")");
+
+    foreach (array(array($membre, true, 'membre du groupe'), array($adminHorsGroupe, false, 'ADMINISTRATEUR hors du groupe')) as $cas) {
+        list($o, $attendu, $libelle) = $cas;
+        $u = new User($db); $u->fetch((int) $o->rowid); $u->getrights();
+        $GLOBALS['user'] = $u;
+        $html = $ref->invoke($actions);
+        $actif = (strpos($html, '"autovalide":1') !== false);
+        check(sprintf('%s (%s, admin=%d) : autovalide', $libelle, $o->login, (int) $u->admin), $actif, $attendu);
+    }
+    // La clé doit exister dans les deux cas, sinon les tests ci-dessus passeraient sur une absence
+    check('la cle autovalide est bien presente dans la conf JS', strpos($html, 'autovalide') !== false, true);
+
+    // Option vidée ⇒ plus personne, même le membre
+    $conf->global->MMIPRODUCTDLUO_CAISSE_GROUP = '';
+    $u = new User($db); $u->fetch((int) $membre->rowid); $u->getrights(); $GLOBALS['user'] = $u;
+    check('groupe non renseigne : inactif pour tout le monde',
+        strpos($ref->invoke($actions), '"autovalide":1') !== false, false);
+}
+$db->rollback();
 
 // --- L'endpoint distingue un article ordinaire d'un produit à lots
 echo "\n== tobatch distingue l'article ordinaire du produit à lots ==\n";

@@ -276,17 +276,11 @@ class modMMIProductDluo extends DolibarrModules
 		$this->rights = array();
 		$r = 0;
 
-		// RM3492 — Mode caisse. L'écran de commande sert de terminal de vente, mais il sert
-		// aussi à saisir des commandes ordinaires : la validation automatique de la ligne au
-		// scan ne doit donc PAS s'appliquer à tout le monde. Un droit, et non une liste de
-		// logins en configuration, parce qu'il s'accorde aussi bien à un compte qu'à un
-		// GROUPE depuis Utilisateurs & Groupes, et qu'un login renommé ne le casse pas en
-		// silence.
-		$this->rights[$r][0] = $this->numero.sprintf('%02d', $r + 1);
-		$this->rights[$r][1] = 'MMIProductDluoRightCaisse';
-		$this->rights[$r][4] = 'caisse';
-		$this->rights[$r][5] = 'use';
-		$r++;
+		// RM3492 — pas de droit « mode caisse » : un droit ne sait pas exclure les
+		// administrateurs. `getrights()` force toutes les permissions pour un admin, et
+		// `insert_permissions()` accorde en plus chaque nouveau droit à tous les comptes admin.
+		// Le ciblage se fait donc par APPARTENANCE AU GROUPE désigné par
+		// MMIPRODUCTDLUO_CAISSE_GROUP (cf. ActionsMMIProductDluo::estEnCaisse).
 
 		// Add here entries to declare new permissions
 		/* BEGIN MODULEBUILDER PERMISSIONS
