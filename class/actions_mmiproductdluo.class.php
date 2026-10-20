@@ -628,6 +628,43 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         return 0;
     }
 
+    /**
+     * L'opérateur travaille-t-il en caisse ? RM3492.
+     *
+     * Par APPARTENANCE À UN GROUPE, et non par un droit : un droit ne sait pas exclure les
+     * administrateurs. `User::getrights()` contient un bloc « Force permission on user for
+     * admin », et `init()` accorde en plus tout nouveau droit à chaque compte admin
+     * (DolibarrModules::insert_permissions, « SELECT rowid FROM llx_user WHERE admin = 1 »).
+     * Résultat mesuré en production le 2026-10-20 : le mode caisse s'est trouvé actif pour les
+     * 7 administrateurs, alors qu'il ne devait l'être que pour la caisse. L'appartenance à un
+     * groupe, elle, ne s'hérite pas — c'est la seule façon de désigner vraiment des personnes.
+     *
+     * Groupe non renseigné ⇒ fonction inactive : aucun effet de bord par défaut, et le
+     * comportement se débraye en vidant l'option, sans livraison.
+     *
+     * @param  object $u utilisateur courant
+     * @return bool
+     */
+    protected function estEnCaisse($u)
+    {
+        global $conf;
+
+        $gid = isset($conf->global->MMIPRODUCTDLUO_CAISSE_GROUP) ? (int) $conf->global->MMIPRODUCTDLUO_CAISSE_GROUP : 0;
+        if ($gid <= 0 || !is_object($u) || empty($u->id)) {
+            return false;
+        }
+        $sql = 'SELECT fk_user FROM '.MAIN_DB_PREFIX.'usergroup_user'
+            .' WHERE fk_usergroup = '.$gid.' AND fk_user = '.((int) $u->id);
+        $res = $this->db->query($sql);
+        if (!$res) {
+            return false;   // en cas de doute, on n'active rien
+        }
+        $dedans = ($this->db->num_rows($res) > 0);
+        $this->db->free($res);
+
+        return $dedans;
+    }
+
     protected function lotPickerAssets()
     {
         global $langs, $conf;
@@ -638,10 +675,10 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
         $conf_js = array(
             'url'   => dol_buildpath('/custom/mmiproductdluo/ajax/lots_for_product.php', 1),
             // RM3492 — mode caisse : la ligne se valide seule au scan, et un clic sur un lot
-            // valide la ligne. Réservé aux porteurs du droit, l'écran servant aussi à saisir
-            // des commandes ordinaires — poser la ligne sous les doigts de quelqu'un venu
-            // ajuster un prix serait pire que le geste qu'on lui épargne.
-            'autovalide' => (is_object($user) && $user->hasRight('mmiproductdluo', 'caisse', 'use')) ? 1 : 0,
+            // valide la ligne. Réservé aux membres du GROUPE désigné en configuration, l'écran
+            // servant aussi à saisir des commandes ordinaires — poser la ligne sous les doigts
+            // de quelqu'un venu ajuster un prix serait pire que le geste qu'on lui épargne.
+            'autovalide' => $this->estEnCaisse($user) ? 1 : 0,
             'langs' => array(
                 'choose' => $langs->trans('MMILotPickerChoose'),
                 'nolot'  => $langs->trans('MMILotPickerNoLot'),
