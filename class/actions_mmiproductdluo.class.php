@@ -632,9 +632,16 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
     {
         global $langs, $conf;
 
+        global $user;
+
         $langs->load('mmiproductdluo@mmiproductdluo');
         $conf_js = array(
             'url'   => dol_buildpath('/custom/mmiproductdluo/ajax/lots_for_product.php', 1),
+            // RM3492 — mode caisse : la ligne se valide seule au scan, et un clic sur un lot
+            // valide la ligne. Réservé aux porteurs du droit, l'écran servant aussi à saisir
+            // des commandes ordinaires — poser la ligne sous les doigts de quelqu'un venu
+            // ajuster un prix serait pire que le geste qu'on lui épargne.
+            'autovalide' => (is_object($user) && $user->hasRight('mmiproductdluo', 'caisse', 'use')) ? 1 : 0,
             'langs' => array(
                 'choose' => $langs->trans('MMILotPickerChoose'),
                 'nolot'  => $langs->trans('MMILotPickerNoLot'),

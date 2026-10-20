@@ -155,6 +155,101 @@
 	 */
 	var lotCourant = null;
 
+	/* ------------------------------------------------------------------ RM3492 — mode caisse */
+
+	// Réservé aux porteurs du droit : l'écran de commande sert aussi à saisir des commandes
+	// ordinaires, où poser la ligne sous les doigts de l'opérateur serait pire que le geste
+	// qu'on lui épargne.
+	var AUTOVALIDE = String(CONF.autovalide) === "1";
+
+	// Une seule soumission, quoi qu'il arrive : un double clic, un Entrée qui part deux fois ou
+	// deux réponses tardives ne doivent pas créer deux lignes.
+	var dejaSoumis = false;
+
+	/**
+	 * Tour de saisie courant. Incrémenté à CHAQUE choix de produit.
+	 *
+	 * L'opérateur peut scanner un article puis se raviser avant que les réponses ne soient
+	 * revenues : sans ce compteur, la réponse du premier produit validerait la ligne du second.
+	 */
+	var tour = 0;
+	var attente = null;   // { tour, picker, coeur, ok, demande }
+
+	/** Bouton « Ajouter » du formulaire de saisie — absent en mode édition de ligne. */
+	function boutonAjout() {
+		return document.getElementById("addline");
+	}
+
+	/** Bouton « Enregistrer » de la ligne en cours d'édition. */
+	function boutonEnregistrer() {
+		// L'id du cœur contient une espace ("savelinebutton marginbottomonly"), donc inutilisable
+		// comme sélecteur : on passe par le name, qui est fiable.
+		return document.querySelector('input[name="save"]');
+	}
+
+	/**
+	 * Vrai sur le formulaire d'AJOUT de ligne.
+	 *
+	 * `commande/card.php` n'appelle `formAddObjectLine()` que si `$action != 'editline'` : les
+	 * deux boutons ne coexistent jamais, la distinction est donc sans ambiguïté.
+	 */
+	function enCreation() {
+		return !!boutonAjout();
+	}
+
+	function validerMaintenant() {
+		if (dejaSoumis) {
+			return;
+		}
+		var b = enCreation() ? boutonAjout() : boutonEnregistrer();
+		if (!b) {
+			return;                              // ni ajout ni édition : rien à valider
+		}
+		dejaSoumis = true;
+		b.click();                               // input[type=submit] : soumet avec son propre name
+	}
+
+	/**
+	 * Valide la ligne dès que c'est SÛR, et pas avant.
+	 *
+	 * Deux requêtes partent du même choix de produit : la nôtre (lot, bande, remise) et celle du
+	 * cœur (prix, remise, TVA). L'ordre d'arrivée n'est pas déterminé. Valider avant la réponse
+	 * du cœur enregistrerait une ligne dont le prix n'a pas encore été écrit — donc on attend
+	 * les deux. Si l'une n'arrive pas, on ne valide pas : l'opérateur retrouve le comportement
+	 * d'avant, ligne remplie et bouton à presser, ce qui est le repli sans danger.
+	 */
+	function tenterValidation() {
+		if (!AUTOVALIDE || dejaSoumis || !attente || !attente.demande) {
+			return;
+		}
+		if (!attente.picker || !attente.ok) {
+			return;
+		}
+		if (enCreation() && !attente.coeur) {
+			return;
+		}
+		validerMaintenant();
+	}
+
+	/**
+	 * Demande la validation. Appelée sans geste de l'opérateur au scan, et sur son clic quand il
+	 * choisit un autre lot.
+	 *
+	 * En ÉDITION il n'y a pas de tour de saisie en cours — le produit n'y change pas, le cœur ne
+	 * requête rien : le geste vaut validation immédiate.
+	 */
+	function demanderValidation() {
+		if (!AUTOVALIDE) {
+			return;
+		}
+		if (!attente) {
+			validerMaintenant();
+			return;
+		}
+		attente.demande = true;
+		tenterValidation();
+	}
+
 	function poser(lot) {
 		lotCourant = lot;
 		var champ = champLot();
@@ -279,11 +374,20 @@
 			}
 		}
 		sel.addEventListener("change", appliquer);
-		sel.addEventListener("click", appliquer);
+		// RM3492 — un clic sur un LOT vaut choix ET validation de la ligne. On exige que la cible
+		// soit l'<option> : dans une liste déroulée, cliquer la bordure ou le fond viserait le
+		// <select> lui-même et validerait sans que l'opérateur ait désigné quoi que ce soit.
+		sel.addEventListener("click", function (e) {
+			appliquer();
+			if (e.target && e.target.tagName === "OPTION") {
+				demanderValidation();
+			}
+		});
 		sel.addEventListener("keydown", function (e) {
-			if (e.key === "Enter") {            // Entrée valide le lot sans soumettre le formulaire
+			if (e.key === "Enter") {            // Entrée : on pose le lot, puis on valide la ligne
 				e.preventDefault();
 				appliquer();
+				demanderValidation();
 			}
 		});
 		appliquer();                            // le champ porte déjà la proposition
@@ -298,8 +402,14 @@
 		}
 	}
 
-	/** Interroge le serveur pour un produit et applique sa décision. */
-	function pourProduit(fk_product) {
+	/**
+	 * Interroge le serveur pour un produit et applique sa décision.
+	 *
+	 * @param fk_product  produit à interroger
+	 * @param monTour     tour de saisie à l'origine de l'appel, ou 0 hors mode caisse (chargement
+	 *                    de page, ligne en édition) : la réponse ne validera alors rien.
+	 */
+	function pourProduit(fk_product, monTour) {
 		if (!URL || !fk_product) {
 			return;
 		}
@@ -309,6 +419,8 @@
 			if (req.readyState !== 4) {
 				return;
 			}
+			// Une réponse qui concerne un produit abandonné entre-temps ne doit plus rien poser.
+			var aJour = (!monTour || (attente && attente.tour === monTour));
 			var d;
 			try {
 				d = JSON.parse(req.responseText);
@@ -320,16 +432,31 @@
 				rendreNatif();
 				return;
 			}
+			if (!aJour) {
+				return;
+			}
 			if (d.remises && d.remises.length) {
 				REMISES = d.remises.map(Number);
 			}
+			var validable;
 			if (d.mode === "auto") {
 				retenir(d.lot);
+				validable = true;
 			} else if (d.mode === "choose") {
-				demander(d.lots);
+				demander(d.lots);                // lots[0] = la DDM la plus proche, donc le lot le plus ancien
+				validable = true;
 			} else {
 				message(L.nolot || "Aucun lot en stock pour ce produit", "muted");
 				escamoterNatif();
+				// Produit NON géré en lot : un article ordinaire, qui se scanne et se valide.
+				// Produit géré en lot mais sans lot vendable : on ne valide rien — la vente
+				// demande une décision, et le message est là pour la provoquer.
+				validable = (Number(d.tobatch) !== 1);
+			}
+			if (attente && monTour && attente.tour === monTour) {
+				attente.picker = true;
+				attente.ok = validable;
+				tenterValidation();
 			}
 		};
 		req.send();
@@ -362,6 +489,10 @@
 			if (lotCourant) {
 				poserRemise(lotCourant);
 			}
+			if (attente) {
+				attente.coeur = true;
+				tenterValidation();
+			}
 		});
 	}
 
@@ -378,22 +509,31 @@
 		escamoterNatif();
 		suivreAjaxCoeur();                       // le cœur écrit aussi la remise : on repasse après lui
 		// Le produit change : par la douchette (le champ se remplit puis « change »), par la
-		// liste, ou par le select2 de Dolibarr — on écoute les trois de la même façon.
+		// liste, ou par le select2 de Dolibarr — on écoute les trois de la même façon. La
+		// douchette termine par un Entrée, qui sélectionne le produit : elle passe donc par ce
+		// même chemin, sans traitement particulier.
 		var prod = document.querySelector('#idprod, [name="idprod"]');
 		if (prod) {
-			prod.addEventListener("change", function () {
-				pourProduit(produitCourant());
-			});
+			var surChoixProduit = function () {
+				var p = produitCourant();
+				if (!p) {
+					return;
+				}
+				// Nouveau tour : il périme les réponses encore en vol pour le produit précédent.
+				tour++;
+				attente = { tour: tour, picker: false, coeur: false, ok: false, demande: AUTOVALIDE };
+				pourProduit(p, tour);
+			};
+			prod.addEventListener("change", surChoixProduit);
 			if (window.jQuery) {
-				window.jQuery(prod).on("select2:select change", function () {
-					pourProduit(produitCourant());
-				});
+				window.jQuery(prod).on("select2:select change", surChoixProduit);
 			}
 		}
 		// produit déjà connu au chargement : saisie reprise après erreur, ou ligne en cours de
 		// MODIFICATION — dans ce dernier cas c'est le seul déclencheur, le produit n'y change pas.
+		// Aucun tour n'est ouvert ici : rien ne doit se valider du simple fait d'ouvrir un écran.
 		if (produitCourant()) {
-			pourProduit(produitCourant());
+			pourProduit(produitCourant(), 0);
 		}
 	}
 
