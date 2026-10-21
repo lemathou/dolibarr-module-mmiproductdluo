@@ -94,6 +94,51 @@ if (!$membre || !$adminHorsGroupe) {
 }
 $db->rollback();
 
+// --- INCIDENT 2026-10-21 : la TVA renvoyee par le hook doit correspondre a une OPTION du
+// --- <select> des taux. Une valeur brute (« 5.500 ») n'y correspond pas, `val()` ne change rien,
+// --- et la ligne part au taux par defaut : 20 % au lieu de 5,5 % (commande CO2610-018743).
+echo "\n== la TVA du hook est au format attendu par le formulaire ==\n";
+require_once DOL_DOCUMENT_ROOT.'/core/lib/functions.lib.php';
+$conf->global->MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE = 1;
+$hm = new HookManager($db);
+if (!isset($conf->modules_parts['hooks']) || !is_array($conf->modules_parts['hooks'])) { $conf->modules_parts['hooks'] = array(); }
+if (!isset($conf->modules_parts['hooks']['mmiproductdluo'])) { $conf->modules_parts['hooks']['mmiproductdluo'] = array(); }
+if (!in_array('productajax', (array) $conf->modules_parts['hooks']['mmiproductdluo'])) { $conf->modules_parts['hooks']['mmiproductdluo'][] = 'productajax'; }
+$hm->initHooks(array('productajax'));
+
+// Un produit a lots dont le lot le plus ancien porte une remise : c'est le cas ou le hook repond.
+$sqlp = "SELECT DISTINCT pl.fk_product FROM ".MAIN_DB_PREFIX."product_lot pl
+    INNER JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = pl.fk_product AND p.tobatch = 1 AND p.tva_tx > 0
+    INNER JOIN ".MAIN_DB_PREFIX."product_stock ps ON ps.fk_product = pl.fk_product
+    INNER JOIN ".MAIN_DB_PREFIX."product_batch pb ON pb.fk_product_stock = ps.rowid AND pb.batch = pl.batch
+    WHERE pb.qty > 0 AND pl.sellby IS NOT NULL LIMIT 300";
+$rp = $db->query($sqlp);
+$teste = 0;
+while (($op = $db->fetch_object($rp)) && $teste < 1) {
+    $prod = new Product($db);
+    if ($prod->fetch((int) $op->fk_product) <= 0) { continue; }
+    $params = array('id' => $prod->id, 'object' => $prod, 'price_level' => 1);
+    $action = 'fetch';
+    $hm->resArray = array();
+    $res = $hm->executeHooks('productAjaxPrice', $params, $prod, $action);
+    if ($res <= 0 || empty($hm->resArray) || !isset($hm->resArray['tva_tx'])) { continue; }
+    $teste++;
+    $renvoye = (string) $hm->resArray['tva_tx'];
+    // Ce que le <select> accepte : la forme normalisee, celle que le coeur produit partout.
+    $attendu = (string) price2num($prod->tva_tx);
+    check(sprintf('produit %s : tva_tx renvoyee = forme normalisee', $prod->ref), $renvoye, $attendu);
+    check('... et ce n\'est PAS la valeur brute de la base ('.$prod->tva_tx.')',
+        $renvoye === (string) $prod->tva_tx && $renvoye !== $attendu, false);
+}
+if (!$teste) { echo "  (ignoré) aucun produit en stock pour lequel le hook repond\n"; }
+
+// Le patch du coeur doit lui aussi normaliser ET renseigner la forme formatee.
+$coeur = @file_get_contents(DOL_DOCUMENT_ROOT.'/product/ajax/products.php');
+check('le coeur normalise la tva du hook (price2num)',
+    (bool) preg_match('/outtva_tx\s*=\s*price2num\(\$r\[.tva_tx.\]\)/', (string) $coeur), true);
+check('le coeur renseigne aussi tva_tx_formated depuis le hook',
+    (bool) preg_match('/outtva_tx_formated\s*=\s*price\(\$r\[.tva_tx.\]\)/', (string) $coeur), true);
+
 // --- L'endpoint distingue un article ordinaire d'un produit à lots
 echo "\n== tobatch distingue l'article ordinaire du produit à lots ==\n";
 $cas = array(1 => 'produit géré en lot', 0 => 'produit NON géré en lot');
