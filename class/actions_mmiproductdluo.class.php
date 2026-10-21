@@ -592,7 +592,10 @@ class ActionsMMIProductDluo extends MMI_Actions_1_0
             'price_ttc'        => price($produit->price_ttc),
             'qty'              => isset($lot['qty']) ? $lot['qty'] : 0,
             'price_base_type'  => $produit->price_base_type,
-            'tva_tx'           => $produit->tva_tx,
+            // Normalisée ici aussi : le hook ne doit pas dépendre de ce que le cœur fait de
+            // sa valeur. Un taux brut (« 5.500 ») ne correspond à aucune option du <select>
+            // des taux, et la ligne repart au taux par défaut.
+            'tva_tx'           => price2num($produit->tva_tx),
             'default_vat_code' => $produit->default_vat_code,
             'palier'           => $bande,
         );
