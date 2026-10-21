@@ -139,6 +139,46 @@ check('le coeur normalise la tva du hook (price2num)',
 check('le coeur renseigne aussi tva_tx_formated depuis le hook',
     (bool) preg_match('/outtva_tx_formated\s*=\s*price\(\$r\[.tva_tx.\]\)/', (string) $coeur), true);
 
+// --- Et surtout : la valeur doit CORRESPONDRE a une option reelle du <select> des taux.
+// --- Verifier le format ne suffisait pas — c'est la correspondance qui manquait, et son absence
+// --- laisse `val()` sans effet, donc la ligne au taux par defaut.
+echo "\n== la TVA renvoyee correspond a une option du <select> des taux ==\n";
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
+require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+$form = new Form($db);
+$acheteur = new Societe($db);
+$rs = $db->query("SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE client > 0 AND fk_pays = ".((int) $mysoc->country_id)." LIMIT 1");
+$os = $rs ? $db->fetch_object($rs) : null;
+if (!$os) {
+    echo "  (ignoré) aucun client du pays de la societe en base\n";
+} else {
+    $acheteur->fetch((int) $os->rowid);
+    $htmlTva = $form->load_tva('tva_tx', -1, $mysoc, $acheteur, 0, 0, '', false, 1);
+    preg_match_all('/<option[^>]*value="([^"]*)"/', $htmlTva, $mm);
+    $options = $mm[1];
+    check('le <select> propose au moins un taux', count($options) > 0, true);
+    $vus = 0; $hors = 0;
+    $rq = $db->query("SELECT DISTINCT pl.fk_product FROM ".MAIN_DB_PREFIX."product_lot pl
+        INNER JOIN ".MAIN_DB_PREFIX."product p ON p.rowid = pl.fk_product AND p.tobatch = 1 AND p.tva_tx > 0
+        INNER JOIN ".MAIN_DB_PREFIX."product_stock ps ON ps.fk_product = pl.fk_product
+        INNER JOIN ".MAIN_DB_PREFIX."product_batch pb ON pb.fk_product_stock = ps.rowid AND pb.batch = pl.batch
+        WHERE pb.qty > 0 AND pl.sellby IS NOT NULL LIMIT 400");
+    while (($xq = $db->fetch_object($rq)) && $vus < 5) {
+        $pr = new Product($db);
+        if ($pr->fetch((int) $xq->fk_product) <= 0) { continue; }
+        $hm->resArray = array();
+        $act = 'fetch';
+        if ($hm->executeHooks('productAjaxPrice', array('id' => $pr->id, 'object' => $pr, 'price_level' => 1), $pr, $act) <= 0) { continue; }
+        if (empty($hm->resArray['tva_tx'])) { continue; }
+        $vus++;
+        if (!in_array((string) $hm->resArray['tva_tx'], $options, true)) { $hors++; }
+    }
+    if (!$vus) { echo "  (ignoré) le hook n'a repondu pour aucun produit en stock\n"; }
+    else {
+        check(sprintf('les %d taux renvoyes existent tous dans le <select>', $vus), $hors, 0);
+    }
+}
+
 // --- L'endpoint distingue un article ordinaire d'un produit à lots
 echo "\n== tobatch distingue l'article ordinaire du produit à lots ==\n";
 $cas = array(1 => 'produit géré en lot', 0 => 'produit NON géré en lot');
