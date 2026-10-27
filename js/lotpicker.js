@@ -218,6 +218,36 @@
 	 * les deux. Si l'une n'arrive pas, on ne valide pas : l'opérateur retrouve le comportement
 	 * d'avant, ligne remplie et bouton à presser, ce qui est le repli sans danger.
 	 */
+	/** Le champ de TVA de la ligne en cours. */
+	function champTva() {
+		return dansZone('#tva_tx, [name="tva_tx"]');
+	}
+
+	/**
+	 * Le formulaire porte-t-il le taux du produit ?
+	 *
+	 * C'est le CONTRÔLE qui manquait : attendre le bon événement ne suffit pas, il faut
+	 * constater l'état. Tant que le champ ne porte pas le taux annoncé par le serveur, la ligne
+	 * n'est pas validée — elle part sinon au taux par défaut, et c'est une facture fausse.
+	 * Le taux peut être affiché « 5.5 » ou « 5.5 (CODE) » : on compare sur la partie numérique.
+	 */
+	function tvaConforme() {
+		if (!attente || !attente.tvaAttendue) {
+			return true;                         // rien d'annoncé : on ne bloque pas sur une inconnue
+		}
+		var champ = champTva();
+		if (!champ) {
+			return true;                         // pas de champ de TVA sur cet écran
+		}
+		var vu = String(champ.value).replace(",", ".");
+		var num = parseFloat(vu);
+		var att = parseFloat(attente.tvaAttendue);
+		if (isNaN(num) || isNaN(att)) {
+			return false;
+		}
+		return (Math.abs(num - att) < 0.001);
+	}
+
 	function tenterValidation() {
 		if (!AUTOVALIDE || dejaSoumis || !attente || !attente.demande) {
 			return;
@@ -226,6 +256,11 @@
 			return;
 		}
 		if (enCreation() && !attente.coeur) {
+			return;
+		}
+		if (!tvaConforme()) {
+			// Le cœur a répondu mais le champ ne porte pas encore le bon taux : on laisse la
+			// main à l'opérateur plutôt que d'enregistrer une ligne fausse.
 			return;
 		}
 		validerMaintenant();
@@ -438,6 +473,9 @@
 			if (d.remises && d.remises.length) {
 				REMISES = d.remises.map(Number);
 			}
+			if (attente && monTour && attente.tour === monTour) {
+				attente.tvaAttendue = (d.tva_tx === undefined || d.tva_tx === null) ? "" : String(d.tva_tx);
+			}
 			var validable;
 			if (d.mode === "auto") {
 				retenir(d.lot);
@@ -483,8 +521,13 @@
 		}
 		window.jQuery(document).ajaxComplete(function (e, xhr, settings) {
 			var url = (settings && settings.url) ? String(settings.url) : "";
-			if (url.indexOf("product/ajax/products.php") === -1) {
-				return;                          // ce n'est pas la requête du cœur
+			// DEUX requêtes distinctes passent par ce fichier : la RECHERCHE du select2
+			// (`?socid=…&htmlname=idprod&outjson=1`), très fréquente, et `?action=fetch`, la
+			// seule qui écrive prix, remise et TVA. Filtrer sur le nom du fichier prenait la
+			// première pour la seconde : la ligne partait avant que la TVA ne soit posée, donc
+			// au taux par défaut — 20 % au lieu de 5,5 %, constaté en caisse le 2026-10-27.
+			if (url.indexOf("product/ajax/products.php") === -1 || url.indexOf("action=fetch") === -1) {
+				return;                          // ce n'est pas la requête qui pose le prix
 			}
 			if (lotCourant) {
 				poserRemise(lotCourant);
@@ -521,7 +564,7 @@
 				}
 				// Nouveau tour : il périme les réponses encore en vol pour le produit précédent.
 				tour++;
-				attente = { tour: tour, picker: false, coeur: false, ok: false, demande: AUTOVALIDE };
+				attente = { tour: tour, picker: false, coeur: false, ok: false, demande: AUTOVALIDE, tvaAttendue: "" };
 				pourProduit(p, tour);
 			};
 			prod.addEventListener("change", surChoixProduit);
