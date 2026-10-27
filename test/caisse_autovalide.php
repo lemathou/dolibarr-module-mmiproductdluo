@@ -38,6 +38,36 @@ function check($label, $got, $want)
     printf("%s %-64s got=%s want=%s\n", $ok ? '  ok  ' : 'FAIL  ', $label, var_export($got, true), var_export($want, true));
 }
 
+// --- INCIDENT 2026-10-27 : le JS attendait « la reponse du coeur » en filtrant sur le NOM du
+// --- fichier. Or deux requetes distinctes passent par products.php : la RECHERCHE du select2 et
+// --- `action=fetch`, seule a poser prix et TVA. La premiere etait prise pour la seconde, donc la
+// --- ligne partait avant que la TVA ne soit ecrite : 20 % au lieu de 5,5 %.
+echo "== le JS n'attend QUE la requete qui pose le prix ==\n";
+$js = file_get_contents(dol_buildpath('/custom/mmiproductdluo/js/lotpicker.js', 0));
+// On cherche la CONDITION, pas la chaine : « action=fetch » figure aussi dans les commentaires,
+// et un test qui la trouve la passerait au vert alors que le filtre a disparu. Verifie par
+// contre-epreuve : filtre retire => ce controle tombe.
+check('la condition du filtre teste action=fetch',
+    strpos($js, 'url.indexOf("action=fetch") === -1') !== false, true);
+// Et le controle d'etat doit etre APPELE, pas seulement defini.
+check('tenterValidation() appelle tvaConforme()',
+    (bool) preg_match('/if\s*\(\s*!\s*tvaConforme\(\)\s*\)/', $js), true);
+
+// Les deux URL reellement observees dans les logs Apache du 2026-10-27.
+$recherche = '/product/ajax/products.php?socid=445&htmlname=idprod&outjson=1&price_level=0&type=&mode=1';
+$fetch     = '/product/ajax/products.php?action=fetch';
+// On rejoue la condition du JS, telle qu'elle est ecrite.
+$passe = function ($url) {
+    return (strpos($url, 'product/ajax/products.php') !== false) && (strpos($url, 'action=fetch') !== false);
+};
+check('la requete de RECHERCHE est ignoree', $passe($recherche), false);
+check('la requete action=fetch est retenue', $passe($fetch), true);
+
+// Et le garde-fou d'etat : la validation verifie le taux porte par le formulaire.
+check('la fonction de controle de la TVA existe', strpos($js, 'function tvaConforme') !== false, true);
+check('l\'endpoint annonce la TVA attendue', strpos(
+    file_get_contents(dol_buildpath('/custom/mmiproductdluo/ajax/lots_for_product.php', 0)), "'tva_tx'") !== false, true);
+
 // --- Le ciblage se fait par GROUPE, et surtout PAS par un droit
 echo "== le ciblage passe par un groupe, pas par un droit ==\n";
 $mod = new modMMIProductDluo($db);

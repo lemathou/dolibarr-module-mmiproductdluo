@@ -139,9 +139,20 @@ if ($resb) {
 	$tobatch = $ob ? (int) $ob->tobatch : 0;
 }
 
+// RM3492 — la TVA ATTENDUE du produit, pour que le JS puisse VÉRIFIER l'état du formulaire
+// avant de valider une ligne, au lieu de se fier à l'ordre d'arrivée des réponses. Le taux est
+// posé par le cœur ; nous ne faisons que contrôler qu'il l'a bien été.
+$tvaAttendue = '';
+$rtva = $db->query('SELECT tva_tx FROM '.MAIN_DB_PREFIX.'product WHERE rowid = '.((int) $fk_product));
+if ($rtva) {
+	$otva = $db->fetch_object($rtva);
+	$tvaAttendue = $otva ? (string) price2num($otva->tva_tx) : '';
+}
+
 echo json_encode(array(
 	'success' => 1,
 	'tobatch' => $tobatch,
+	'tva_tx'  => $tvaAttendue,
 	// Les remises de toutes les bandes : le JS ne remplace QUE l'une d'elles, pour ne pas
 	// écraser un pourcentage saisi à la main par l'opérateur.
 	'remises' => array_values(array_unique(array_map('floatval', MMIProductDluo_LotPicker::allDiscounts()))),
