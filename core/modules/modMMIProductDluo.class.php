@@ -115,6 +115,11 @@ class modMMIProductDluo extends DolibarrModules
 			),
 			// Set here all hooks context managed by module. To find available hook context, make a "grep -r '>initHooks(' *" on source code. You can also set hook context to 'all'
 			'hooks' => array(
+				'ordercard',              // RM3040 : saisie de commande = CAISSE (douchette + choix du lot)
+				// RM3040 — prix d'une ligne selon la DDM du lot. La règle a quitté le cœur
+				// (product/ajax/products.php), où elle ne connaissait que deux bandes sur quatre,
+				// pour revenir ici, où elle a sa place et où elle partage celle du picking.
+				'productajax',
 				'receptioncard',
 				'expeditioncard',
 				'productcard',
@@ -270,6 +275,13 @@ class modMMIProductDluo extends DolibarrModules
 		// Permissions provided by this module
 		$this->rights = array();
 		$r = 0;
+
+		// RM3492 — pas de droit « mode caisse » : un droit ne sait pas exclure les
+		// administrateurs. `getrights()` force toutes les permissions pour un admin, et
+		// `insert_permissions()` accorde en plus chaque nouveau droit à tous les comptes admin.
+		// Le ciblage se fait donc par APPARTENANCE AU GROUPE désigné par
+		// MMIPRODUCTDLUO_CAISSE_GROUP (cf. ActionsMMIProductDluo::estEnCaisse).
+
 		// Add here entries to declare new permissions
 		/* BEGIN MODULEBUILDER PERMISSIONS
 		$this->rights[$r][0] = $this->numero . sprintf("%02d", $r + 1); // Permission id (must not be already used)
@@ -431,6 +443,64 @@ class modMMIProductDluo extends DolibarrModules
         $extrafields->addExtraField('kit_ddm_any', $langs->trans('Extrafield_kit_ddm_any'), 'boolean', 10, '', 'product', 0, 0, '', "", 1, '', -1, $langs->trans('ExtrafieldToolTip_kit_ddm_any'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
 		// Lot
         $extrafields->addExtraField('antigaspi_autoremove_disabled', $langs->trans('Extrafield_antigaspi_autoremove_disabled'), 'boolean', 10, '', 'product_lot', 0, 0, '', "", 1, '', -1, "", '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// RM3040 — la ligne de commande porte DEUX informations, et pas une seule.
+		//
+		//   · le PALIER est le CONTRAT : c'est la bande que le client a achetée, donc la remise
+		//     consentie. Toujours renseigné. Calculé à la date de SAISIE puis figé — un lot
+		//     franchit une borne avec le temps, et une commande ne doit pas changer de bande
+		//     toute seule entre la saisie et la livraison ;
+		//   · le LOT est le choix EXPLICITE, quand il y en a un : caisse (l'opérateur voit le
+		//     lot passer sous ses yeux) ou commande du catalogue pro. Le renseigner renseigne
+		//     le palier automatiquement, déduit de sa DDM.
+		//
+		// Un seul champ ne suffisait pas : le contrat n'est pas le même selon le canal de
+		// vente — une bande pour un particulier, un lot pour un pro (arbitrage 2026-09-29).
+        $extrafields->addExtraField('palier', $langs->trans('Extrafield_palier'), 'select', 99, '', 'commandedet', 0, 0, '', array('options' => array(
+            'normal'       => 'Date longue',
+            'date_courte'  => 'Date courte',
+            'antigaspi'    => 'Antigaspi',
+            'antigaspi_dm' => 'Antigaspi dernière minute',
+        )), 1, '', -1, $langs->trans('ExtrafieldToolTip_palier'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// `link` vers Productlot plutôt qu'un numéro de lot en texte : c'est la convention déjà
+		// suivie ici (fk_entrepot, fk_adresse), elle donne le lien cliquable vers la fiche lot,
+		// et elle supprime une classe de bug — le champ texte qu'on remplace était en
+		// varchar(30) alors qu'un numéro de lot Dolibarr fait 128 caractères.
+        $extrafields->addExtraField('fk_product_lot', $langs->trans('Extrafield_fk_product_lot'), 'link', 100, '', 'commandedet', 0, 0, '', array('options' => array(
+            'Productlot:product/stock/class/productlot.class.php' => null,
+        )), 1, '', -1, $langs->trans('ExtrafieldToolTip_fk_product_lot'), '', $conf->entity, 'mmiproductdluo@mmiproductdluo', '$conf->mmiproductdluo->enabled');
+		// `mmi_lot` était la première forme du champ (RM3040, 2026-09-15) : jamais partie en
+		// production, remplacée par les deux ci-dessus. On la retire pour ne pas laisser une
+		// colonne morte que quelqu'un croirait renseignée.
+        // `attributes` est un CACHE : sans ce chargement il est vide et la garde ne voyait
+        // jamais le champ à retirer — l'ancien restait en place à côté des nouveaux.
+        $extrafields->fetch_name_optionals_label('commandedet');
+        if (!empty($extrafields->attributes['commandedet']['type']['mmi_lot'])) {
+            // Ceinture de sécurité : cet `init()` tourne sur TOUTES les instances, y compris
+            // celles que nous ne voyons pas d'ici. `mmi_lot` n'a jamais quitté le poste de dev
+            // — vérifié par l'historique du module, par dpsync, par la boutique et par la base
+            // — mais supprimer un extrafield DÉTRUIT sa colonne et ce qu'elle contient. Si la
+            // colonne porte la moindre donnée quelque part, on ne touche à rien et on le DIT :
+            // une donnée perdue en silence ne se rattrape pas, un champ en trop se supprime à la
+            // main en trois secondes.
+            // `getRow` rend un OBJET, `false` si la requête échoue (colonne absente par
+            // exemple). On part du principe inverse du confort : tant qu'on n'a pas COMPTÉ
+            // zéro, on ne supprime pas.
+            $compte = $this->db->getRow(
+                'SELECT COUNT(*) AS n FROM '.MAIN_DB_PREFIX."commandedet_extrafields
+                 WHERE mmi_lot IS NOT NULL AND mmi_lot <> ''"
+            );
+            $porteDesDonnees = is_object($compte) ? (int) $compte->n : -1;
+            if ($porteDesDonnees !== 0) {
+                $this->error = 'extrafield `mmi_lot` CONSERVÉ : '
+                    .($porteDesDonnees < 0 ? 'impossible de compter ses valeurs'
+                        : $porteDesDonnees.' ligne(s) le renseignent')
+                    .'. Remplacé par `palier` + `fk_product_lot` (RM3040) ; à retirer à la main'
+                    .' après reprise de ces valeurs.';
+                dol_syslog(get_class($this).'::init '.$this->error, LOG_WARNING);
+            } else {
+                $extrafields->delete('mmi_lot', 'commandedet');
+            }
+        }
 
 		// Permissions
 		$this->remove($options);
