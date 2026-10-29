@@ -1,86 +1,87 @@
-# MMIPRODUCTDLUO FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
+# MMIProductDluo — Gestion DLUO/DLC et lots : sélection de lots, antigaspi, stock composé, prix par bande et picking.
 
-## Features
+> Module Dolibarr **MMIProductDluo** (version 1.0), branche `20.0`.
 
-Description of the module...
+## Fonctionnalités
 
-<!--
-![Screenshot mmiproductdluo](img/screenshot_mmiproductdluo.png?raw=true "MMIProductDluo"){imgmd}
--->
+### Fonctionnalités principales
 
-Other external modules are available on [Dolistore.com](https://www.dolistore.com).
+- Dates DLUO/DLC et sélection de lots (`mmiproductdluo_lotpicker`, `ajax/lots_for_product.php`).
+- Antigaspi (`ajax/antigaspi_toggle.php`) et stock composé (`mmiproductdluo_stock`, trigger dédié).
+- Prix par bande, picking par palier/tiers et défauts (`test/*`).
+- API dédiée (`api_mmiproductdluo`) et menus de gestion des lots.
 
-## Translations
+### Écrans et menus
 
-Translations can be completed manually by editing files into directories *langs*.
+- **Gestion avancée Lots Produit (DDM/DLC/DLUO)** — `/mmiproductdluo/mmiproductdluoindex.php` (menu mmiproductdluo, droit `1`)
 
-<!--
-This module contains also a sample configuration for Transifex, under the hidden directory [.tx](.tx), so it is possible to manage translation using this service.
+### Pages
 
-For more informations, see the [translator's documentation](https://wiki.dolibarr.org/index.php/Translator_documentation).
+- `admin/about.php`
+- `admin/setup.php`
 
-There is a [Transifex project](https://transifex.com/projects/p/dolibarr-module-template) for this module.
--->
+### Configuration
 
-<!--
+| Constante | Type | Rôle |
+|---|---|---|
+| `MMIPRODUCTDLUO_PERIME` | string | Délai péremption après DDM |
+| `MMIPRODUCTDLUO_ANTIGASPI` | string | Délai mise en antigaspi avant DDM |
+| `MMIPRODUCTDLUO_PROMO` | string | Délai promo avant DDM |
+| `MMIPRODUCTDLUO_PERIME_ALLONGE` | string |  |
+| `MMIPRODUCTDLUO_ORDER_PROMOPRICE_DM` | numeric |  |
+| `MMIPRODUCTDLUO_CAISSE_GROUP` | numeric |  |
+| `MMIPRODUCTDLUO_LOT_DEFAULT_MODE` | string |  |
+| `MMIPRODUCTDLUO_STOCK_COMPOSED_DDM_AUTO` | yesno | Calcul automatique du stock des produits composés avec DDM |
+| `MMIPRODUCTDLUO_ANTIGASPI_EMAIL_FROM` | string | Adresse expéditeur notifications |
+| `MMIPRODUCTDLUO_ANTIGASPI_EMAIL_TO` | string | Adresse de réception notifications |
+| `MMIPRODUCTDLUO_ANTIGASPI_EMAIL_SUBJECT` | string | Objet de l'email de notification |
+| `MMIPRODUCTDLUO_SUPPLIERORDER_DISPATCH_SEARCHBYEAN` | yesno | Recherche par EAN (douchette) pour créer une réception |
+| `MMIPRODUCTDLUO_KIT_SHOW_LOT_STOCK` | yesno | Voir les stock par DDM dans le détail des kits |
+| `MMIPRODUCTDLUO_ORDER_PROMOPRICE_ENABLE` | yesno | Afficher des remises sur les prix en fonction des DDM |
+| `MMIPRODUCTDLUO_ORDER_PROMOPRICE_PROMO` | numeric | % de remise prix promo |
+| `MMIPRODUCTDLUO_ORDER_PROMOPRICE_ANTIGASPI` | numeric | % de remise prix antigaspi |
+| `RECEPTION_BATCH_MUST_HAVE_DATE` | yesno | Date (DDM ou DLC) obligatoire pour un lot |
+| `STOCK_HIDE_ALL_EMPTY_BATCH_BY_DEFAULT` | yesno | Cacher les lots vides par défaut dans le stock |
+
+### Hooks
+
+- Contextes : `ordercard`
+- Callbacks : `ddmSubquery`, `printFieldListSelect`, `printFieldListJoin`, `printFieldListWhere`, `printFieldListHaving`, `printFieldListStock`, `printFieldPreListTitle`, `printFieldListFilters`, `printFieldListOption`, `printFieldListTitle`, `printFieldListValue`, `printFieldListFooter`, `productAjaxPrice`, `printCommonFooter`, `estEnCaisse`, `lotPickerAssets`, `antigaspiButtonHtml`, `antigaspiAssets`
+
+### Triggers
+
+- `core/triggers/interface_99_modMMIProductDluo_stock_composed.class.php`
+
+### Classes et composants
+
+- `class/actions_mmiproductdluo.class.php`
+- `class/api_mmiproductdluo.class.php`
+- `class/mmiproductdluo_lotpicker.class.php`
+- `class/mmiproductdluo_stock.class.php`
+- `lib/mmiproductdluo.lib.php`
+
+## Prérequis
+
+- Dolibarr >= 11.0 (branche `20.0` : Dolibarr 20.0).
+- Modules MMI : `mmicommon`, `mmiproduct`. **`mmicommon` doit être activé en premier.**
+- Modules cœur : `productBatch`.
 
 ## Installation
 
-### From the ZIP file and GUI interface
+1. Copier le module dans `htdocs/custom/mmiproductdluo` :
 
-- If you get the module in a zip file (like when downloading it from the market place [Dolistore](https://www.dolistore.com)), go into
-menu ```Home - Setup - Modules - Deploy external module``` and upload the zip file.
+   ```sh
+   cd htdocs/custom
+   git clone <dépôt> mmiproductdluo
+   ```
 
-Note: If this screen tell you there is no custom directory, check your setup is correct:
+2. Dans Dolibarr : **Configuration → Modules**, activer d'abord `mmicommon`, puis ce module.
+3. Vérifier les permissions dans la fiche des utilisateurs concernés.
 
-- In your Dolibarr installation directory, edit the ```htdocs/conf/conf.php``` file and check that following lines are not commented:
+## Licence
 
-    ```php
-    //$dolibarr_main_url_root_alt ...
-    //$dolibarr_main_document_root_alt ...
-    ```
+GPLv3 ou ultérieure — voir `COPYING`. Documentation sous GFDL.
 
-- Uncomment them if necessary (delete the leading ```//```) and assign a sensible value according to your Dolibarr installation
+## Changelog
 
-    For example :
-
-    - UNIX:
-        ```php
-        $dolibarr_main_url_root_alt = '/custom';
-        $dolibarr_main_document_root_alt = '/var/www/Dolibarr/htdocs/custom';
-        ```
-
-    - Windows:
-        ```php
-        $dolibarr_main_url_root_alt = '/custom';
-        $dolibarr_main_document_root_alt = 'C:/My Web Sites/Dolibarr/htdocs/custom';
-        ```
-
-### From a GIT repository
-
-- Clone the repository in ```$dolibarr_main_document_root_alt/mmiproductdluo```
-
-```sh
-cd ....../custom
-git clone git@github.com:gitlogin/mmiproductdluo.git mmiproductdluo
-```
-
-### <a name="final_steps"></a>Final steps
-
-From your browser:
-
-  - Log into Dolibarr as a super-administrator
-  - Go to "Setup" -> "Modules"
-  - You should now be able to find and enable the module
-
--->
-
-## Licenses
-
-### Main code
-
-GPLv3 or (at your option) any later version. See file COPYING for more information.
-
-### Documentation
-
-All texts and readmes are licensed under GFDL.
+Voir [CHANGELOG.md](CHANGELOG.md) (évolutions datées).
